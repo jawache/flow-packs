@@ -62,7 +62,7 @@
     "//": "Commands live in the justfile — run `just`."
   },
   "devDependencies": {
-    "@jawache/flow": "git+file:///Users/asim/dev/jawache/flow#v0.4.0",
+    "@jawache/flow": "github:jawache/flow#v0.4.0",
     "@types/node": "24.13.4",
     "commit-and-tag-version": "13.1.2",
     "esbuild": "0.28.2",
