@@ -8,7 +8,8 @@ default:
 
 [doc("Install dependencies from the lockfile. Run this first in a fresh clone or worktree.")]
 install:
-    npm ci
+    # --allow-git=root: npm 12 fetches a git dependency only when told to, and @jawache/flow is one.
+    npm ci --allow-git=root
 
 [doc("Build every pack into dist/<pack>.mjs, with its types in dist/types/. A project's flow loads the built files, never the source.")]
 build:
