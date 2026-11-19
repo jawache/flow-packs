@@ -9,6 +9,7 @@ import { justfile } from "./packs/justfile.ts";
 import { node } from "./packs/node.ts";
 import { tdd } from "./packs/tdd.ts";
 import { typescript } from "./packs/typescript.ts";
+import { driven } from "./guards/driven.ts";
 
 export default defineConfig([
   pack(flow),
@@ -19,4 +20,6 @@ export default defineConfig([
   override(typescript.commitRunsEslint).disabled("no eslint in this repo yet: the typecheck is the gate"),
   pack(tdd, { run: "just test-commit" }),
   pack(docs),
+  // This repo is driven by work: `guards/driven.ts` is flow 0.4's copy, not the template's, which is still 0.3's.
+  pack(driven),
 ]);
