@@ -3,7 +3,8 @@
 // A release is a tag that holds the built packs. Two commits make it: the release commit on the
 // branch (the version and the changelog, made by commit-and-tag-version with its own tag turned
 // off), and a second commit above it that holds dist/. The tag points at the second, and the branch
-// stays at the first, so the branch never holds built files and the tag always does. A project
+// stays at the first, so the branch never holds built files and the tag always does. A merge with
+// `-s ours` then makes the tag reachable from the branch without bringing its files. A project
 // installs the tag with `npm i -D --allow-git=root github:jawache/flow-packs#v<version>`.
 //
 //   node tools/release.ts cut     the release commit, the release build, the commit that holds dist/, the tag
@@ -57,6 +58,11 @@ function cut(repo: string, extra: readonly string[] = []): string {
     throw error;
   }
   run("git", ["switch", "-q", branch === "" ? release : branch], repo);
+  // The tag's commit is merged back with `-s ours`: the branch's files stay exactly as they were, so
+  // the branch still holds no dist/, and the tag becomes reachable from the branch, which is where
+  // commit-and-tag-version looks for the last release. Without it, the next release counts from the
+  // tag before, and its changelog repeats this one.
+  run("git", ["merge", "-q", "-s", "ours", "--no-ff", "-m", `chore(release): v${version} is reachable from the branch`, `v${version}`], repo);
   run("git", ["restore", "--source", `v${version}`, "--worktree", "--", ...files], repo);
   return version;
 }
