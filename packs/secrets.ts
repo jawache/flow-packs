@@ -240,7 +240,7 @@ export const secrets = definePack("secrets", (repo: Seam = {}) => {
       `A plaintext value in a committed env file — this is the leak the whole model exists to prevent, and git keeps it forever. Seal it with \`${encrypt}\` (${publicPrefixes.map((prefix) => `${prefix}*`).join(", ")} and the DOTENV_PUBLIC_KEY header stay plaintext by design).`,
     )
     .test({
-      pass: [{ path: ".env", content: "DOTENV_PUBLIC_KEY=03ab\nAPI_KEY=encrypted:BE9d\nPUBLIC_URL=https://x" }],
+      pass: [{ path: envFile, content: "DOTENV_PUBLIC_KEY=03ab\nAPI_KEY=encrypted:BE9d\nPUBLIC_URL=https://x" }],
       block: [{ path: envFile, content: "API_KEY=sk-live-abcdef" }],
     }),
 
@@ -250,14 +250,15 @@ export const secrets = definePack("secrets", (repo: Seam = {}) => {
     .description("The decryption key and the local overlays can never be committed — the backstop when gitignore breaks.")
     // Per file, not `protectedPath`: that check also refuses a commit that DELETES a protected path,
     // and removing a key file from history's next commit is the repair this rule asks for.
-    .check((ctx) => (ctx.file === undefined ? ctx.ok() : ctx.fail(`'${ctx.file.path}' is machine-local`)))
+    .check((ctx) => ctx.fail(`'${ctx.file?.path}' is machine-local`))
     .message(
       "This file is machine-local and must never be committed: `.env.keys` is the decryption key for every sealed value in this repo, and the `.local` overlays hold real, unencrypted values. The gitignore normally stops this — if you got here, the gitignore is broken.",
     )
-    // The pass side is the file the tier ABOVE this one is about: `.env` is committed, sealed, and
-    // nothing here judges it. Without the case, the rule proved only that it refuses something.
+    // The pass side is the repair this rule asks for: a commit that DELETES the key file stages no
+    // file in scope, so the rule is never called and the commit goes through. A case that staged a
+    // sealed env file would sit outside this rule's `.on(…)` and never reach it.
     .test({
-      pass: [{ staged: [".env"], world: { fs: { ".env": "API_KEY=encrypted:BE9d" } } }],
+      pass: [{ staged: [], deleted: [keysFile] }],
       block: [{ staged: [keysFile], world: { fs: { [keysFile]: "k" } } }],
     }),
 
