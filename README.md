@@ -42,7 +42,7 @@ export default defineConfig([
 ]);
 ```
 
-`tests/all.config.ts` binds all eight with sample parameters.
+`tests/all.config.ts` binds all eight with sample parameters, and `tests/layout.config.ts` binds them again with another repo's folders and file names.
 
 ## Work on the packs
 

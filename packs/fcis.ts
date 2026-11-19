@@ -75,6 +75,19 @@ const TESTS = "**/*.test.*";
 const asTest = (file: string): string => file.replace(/(\.[^./]+)$/, ".test$1");
 
 /**
+ * Where `file`'s sibling test sits under the `sibling` template, filled as flow fills it
+ * (`{dir}` `{base}` `{name}` `{path}`), so a case's sibling is the one the check looks for.
+ */
+const siblingOf = (template: string, file: string): string => {
+  const dir = file.includes("/") ? file.slice(0, file.lastIndexOf("/")) : ".";
+  const base = file.slice(file.lastIndexOf("/") + 1);
+  const dot = base.lastIndexOf(".");
+  const name = dot > 0 ? base.slice(0, dot) : base;
+  const parts: Record<string, string> = { dir, base, name, path: dir === "." ? name : `${dir}/${name}` };
+  return template.replace(/\{(dir|base|name|path)\}/g, (_, key: string) => parts[key] ?? "");
+};
+
+/**
  * Functional Core, Imperative Shell (Bernhardt, "Boundaries", SCNA 2012).
  *
  * The one-stop shop for running FCIS in a repo: the model, the rules that hold both sides honest,
@@ -98,6 +111,10 @@ const asTest = (file: string): string => file.replace(/(\.[^./]+)$/, ".test$1");
 export const fcis = definePack("fcis", (repo: Convention) => {
   const sibling = repo.sibling ?? "{dir}/{name}.test.ts";
   const tests = repo.tests ?? TESTS;
+  // Every case names the repo's own pure file, so it reaches a rule scoped to the repo's own globs:
+  // a path the pack invented falls outside them, and the rule is never asked.
+  const pure = repo.example;
+  const test = siblingOf(sibling, pure);
   return {
     /**
      * Without it, the split is a rule with no model behind it: an agent moves a side effect out of a
@@ -159,8 +176,8 @@ export const fcis = definePack("fcis", (repo: Convention) => {
       .test({
         // `new Date(iso)` is a pure parse of an injected value and passes; `new Date()` reads the
         // system clock and does not. That discrimination is the whole reason this parses.
-        pass: [{ path: "cli/pure/domain.ts", content: "export const at = (iso: string) => new Date(iso);" }],
-        block: [{ path: "cli/pure/domain.ts", content: "export const now = () => new Date();" }],
+        pass: [{ path: pure, content: "export const at = (iso: string) => new Date(iso);" }],
+        block: [{ path: pure, content: "export const now = () => new Date();" }],
       }),
 
     noShellInPure: guardrail()
@@ -189,8 +206,8 @@ export const fcis = definePack("fcis", (repo: Convention) => {
         ].join("\n"),
       )
       .test({
-        pass: [{ path: "cli/pure/domain.ts", content: 'import { join } from "node:path";' }],
-        block: [{ path: "cli/pure/domain.ts", content: 'import * as fs from "node:fs";' }],
+        pass: [{ path: pure, content: 'import { join } from "node:path";' }],
+        block: [{ path: pure, content: 'import * as fs from "node:fs";' }],
       }),
 
     noThrowInPure: guardrail()
@@ -203,8 +220,8 @@ export const fcis = definePack("fcis", (repo: Convention) => {
         "`throw` / Promise.reject in the functional core. Errors are VALUES here — return a Result / tagged union (ok/err) so the failure path shows in the signature and the caller must handle both arms. Adapt thrown errors to Results at the boundary, not inside pure code.",
       )
       .test({
-        pass: [{ path: "cli/pure/domain.ts", content: "export const f = () => ({ ok: false as const });" }],
-        block: [{ path: "cli/pure/domain.ts", content: 'export const f = () => { throw new Error("x"); };' }],
+        pass: [{ path: pure, content: "export const f = () => ({ ok: false as const });" }],
+        block: [{ path: pure, content: 'export const f = () => { throw new Error("x"); };' }],
       }),
 
     // ── test: every pure file is proven ──
@@ -216,8 +233,8 @@ export const fcis = definePack("fcis", (repo: Convention) => {
       .check(siblingExists({ sibling }))
       .message("The pure core is test-first (red → green): this file's sibling test, named below, is missing. Write the failing test, then the code.")
       .test({
-        pass: [{ path: "cli/pure/domain.ts", content: "", world: { fs: { "cli/pure/domain.test.ts": "" } } }],
-        block: [{ path: "cli/pure/domain.ts", content: "" }],
+        pass: [{ path: pure, content: "", world: { fs: { [test]: "" } } }],
+        block: [{ path: pure, content: "" }],
       }),
 
     pureExportsTested: guardrail()
@@ -230,8 +247,8 @@ export const fcis = definePack("fcis", (repo: Convention) => {
         "The exports listed below are never named in this file's test. Write a test that uses each one, then write the change again: a reference is enough, as this is a nudge, not coverage.",
       )
       .test({
-        pass: [{ path: "cli/pure/domain.ts", content: "export const x = 1;", world: { fs: { "cli/pure/domain.test.ts": "expect(x)" } } }],
-        block: [{ path: "cli/pure/domain.ts", content: "export const y = 1;", world: { fs: { "cli/pure/domain.test.ts": "nothing" } } }],
+        pass: [{ path: pure, content: "export const x = 1;", world: { fs: { [test]: "expect(x)" } } }],
+        block: [{ path: pure, content: "export const y = 1;", world: { fs: { [test]: "nothing" } } }],
       }),
 
     pureCovered: guardrail()

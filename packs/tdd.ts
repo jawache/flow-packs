@@ -6,6 +6,7 @@
 // written at the trio's old spot below, where whoever comes looking for it will land.
 
 import { astGrep, breadcrumb, commit, definePack, execPasses, guardrail, fileChange } from "@jawache/flow";
+import { sample } from "./sample.ts";
 
 /** The test-file spellings the idiom rules watch when a repo names none of its own. */
 const TESTS = ["**/*.test.ts", "**/*.test.tsx", "**/*.test.js", "**/*.test.mjs", "**/*.spec.ts", "**/*.spec.tsx", "**/*.spec.js"];
@@ -50,6 +51,8 @@ export interface Suite {
  */
 export const tdd = definePack("tdd", (repo: Suite) => {
   const tests = repo.tests ?? TESTS;
+  // A test file every rule on `tests` is asked about, in this repo's own spelling.
+  const testFile = sample(tests[0] ?? "a.test.ts");
   return {
     /**
      * Without it, testing effort goes where it is easiest to write rather than where confidence is
@@ -102,8 +105,8 @@ export const tdd = definePack("tdd", (repo: Suite) => {
         ].join("\n"),
       )
       .test({
-        pass: [{ path: "a.test.ts", content: 'import { test, expect } from "vitest";' }],
-        block: [{ path: "a.test.ts", content: 'import { test } from "node:test";' }],
+        pass: [{ path: testFile, content: 'import { test, expect } from "vitest";' }],
+        block: [{ path: testFile, content: 'import { test } from "node:test";' }],
       }),
 
     vitestIdioms: {
@@ -127,8 +130,8 @@ export const tdd = definePack("tdd", (repo: Suite) => {
           "Module-mocking your own code (a relative import). This pins the test to the file layout and skips the real integration — test behaviour through the public surface and mock at the boundary you own instead (network → MSW; clock/random → inject).",
         )
         .test({
-          pass: [{ path: "a.test.ts", content: 'vi.mock("axios");' }],
-          block: [{ path: "a.test.ts", content: 'vi.mock("./neighbour.ts");' }],
+          pass: [{ path: testFile, content: 'vi.mock("axios");' }],
+          block: [{ path: testFile, content: 'vi.mock("./neighbour.ts");' }],
         }),
 
       noOnlyInTests: guardrail()
@@ -140,8 +143,8 @@ export const tdd = definePack("tdd", (repo: Suite) => {
           "A focused test (.only) silently skips the rest of the suite — CI goes green while nothing runs. Remove the focus before you commit.",
         )
         .test({
-          pass: [{ path: "a.test.ts", content: 'it("works", () => { expect(1).toBe(1); });' }],
-          block: [{ path: "a.test.ts", content: 'it.only("works", () => { expect(1).toBe(1); });' }],
+          pass: [{ path: testFile, content: 'it("works", () => { expect(1).toBe(1); });' }],
+          block: [{ path: testFile, content: 'it.only("works", () => { expect(1).toBe(1); });' }],
         }),
 
       noNetworkStubs: guardrail()
@@ -170,8 +173,8 @@ export const tdd = definePack("tdd", (repo: Suite) => {
           "Hand-rolled network stub. Mock at the network boundary with MSW (Testing Trophy: mock only what you own — the edge, not the client), so request building, serialisation and error mapping stay under test.",
         )
         .test({
-          pass: [{ path: "a.test.ts", content: 'server.use(http.get("/x", () => HttpResponse.json({})));' }],
-          block: [{ path: "a.test.ts", content: "global.fetch = vi.fn();" }],
+          pass: [{ path: testFile, content: 'server.use(http.get("/x", () => HttpResponse.json({})));' }],
+          block: [{ path: testFile, content: "global.fetch = vi.fn();" }],
         }),
 
       noEmptyTest: guardrail()
@@ -195,8 +198,8 @@ export const tdd = definePack("tdd", (repo: Suite) => {
           "Empty test body — it passes forever and counts as coverage. Write the assertion, or be honest with `it.todo('…')` until you do.",
         )
         .test({
-          pass: [{ path: "a.test.ts", content: 'it.todo("covers the retry path");' }],
-          block: [{ path: "a.test.ts", content: 'it("covers the retry path", () => {});' }],
+          pass: [{ path: testFile, content: 'it.todo("covers the retry path");' }],
+          block: [{ path: testFile, content: 'it("covers the retry path", () => {});' }],
         }),
     },
 

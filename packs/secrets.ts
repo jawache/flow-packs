@@ -7,6 +7,7 @@
 // still told something it can type. The recipes are the repo's own to write.
 
 import { breadcrumb, commit, definePack, guardrail, session, textBan } from "@jawache/flow";
+import { sample } from "./sample.ts";
 
 /**
  * The local-only files every dotenvx repo has: the decryption key, and the per-environment
@@ -160,6 +161,9 @@ export const secrets = definePack("secrets", (repo: Seam = {}) => {
   const publicPrefixes = repo.publicPrefixes ?? ["PUBLIC_"];
   const localFiles = repo.localFiles ?? [...LOCAL_ONLY, ".dev.vars"];
   const envFiles = repo.envFiles ?? ".env*";
+  // One committed env file and one local-only file, in this repo's own spelling, for the cases.
+  const envFile = sample(envFiles);
+  const keysFile = sample(localFiles[0] ?? ".env.keys");
   const extraShapes = repo.extraSecretShapes ?? [];
   // SEALING, spelled as the repo spells it or as dotenvx does. The default excludes the very
   // prefixes this pack waves through below, so the command a refusal hands over is the one that
@@ -237,7 +241,7 @@ export const secrets = definePack("secrets", (repo: Seam = {}) => {
     )
     .test({
       pass: [{ path: ".env", content: "DOTENV_PUBLIC_KEY=03ab\nAPI_KEY=encrypted:BE9d\nPUBLIC_URL=https://x" }],
-      block: [{ path: ".env", content: "API_KEY=sk-live-abcdef" }],
+      block: [{ path: envFile, content: "API_KEY=sk-live-abcdef" }],
     }),
 
   noKeysFileInCommits: guardrail()
@@ -254,7 +258,7 @@ export const secrets = definePack("secrets", (repo: Seam = {}) => {
     // nothing here judges it. Without the case, the rule proved only that it refuses something.
     .test({
       pass: [{ staged: [".env"], world: { fs: { ".env": "API_KEY=encrypted:BE9d" } } }],
-      block: [{ staged: [".env.keys"], world: { fs: { ".env.keys": "k" } } }],
+      block: [{ staged: [keysFile], world: { fs: { [keysFile]: "k" } } }],
     }),
 
   noSecretsInCommits: guardrail()
