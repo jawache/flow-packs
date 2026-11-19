@@ -1,0 +1,12 @@
+#!/bin/sh
+# The flow commit gate. Written by `flow init`; `git config core.hooksPath .githooks` arms it.
+#
+# Every commit guardrail runs here, once, over the staged changes and the message, and a block exits
+# non-zero, which is how git refuses the commit. It fires for a human's commit as well as an
+# agent's, with no session in the room. flow asks git itself what the commit adds, changes and
+# deletes.
+#
+# git runs this from the repo's root, so the repo's own @jawache/flow, a dev dependency's, runs
+# before any flow on the PATH.
+f="$PWD/node_modules/@jawache/flow/dist/flow.mjs"; [ -f "$f" ] && exec node "$f" hook commit "$1"
+exec flow hook commit "$1"

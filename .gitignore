@@ -1,0 +1,12 @@
+node_modules
+
+# Build output. `just build` makes it. The branch never tracks it: `just release` commits it in a
+# second commit that only the release tag points at.
+dist/
+
+# The work record, a symlink into ~/.work.
+.work
+.work-current
+
+# Per-machine agent settings.
+.claude/settings.local.json

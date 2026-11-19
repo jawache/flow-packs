@@ -1,0 +1,25 @@
+{
+  "//": "THIS REPO'S OWN FILE, and nothing ships it. The typescript pack takes `tsconfigBase` as an optional parameter and flow.config.ts hands it this path, which is what makes every tsconfig here extend it and keep the strict options on. A base states one fleet's opinion about target, module and lib, so a neutral engine has no business shipping one; the pack's page carries a copy of this file as a reference for a repo that wants a base of its own.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "moduleDetection": "force",
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+
+    "noEmit": true,
+    "sourceMap": true,
+    "declaration": true
+  }
+}

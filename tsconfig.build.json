@@ -1,0 +1,14 @@
+{
+  "//": "Declarations for the packs, and nothing else. The tests, the configs and tools/ are not what ships.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "rewriteRelativeImportExtensions": true,
+    "rootDir": "packs",
+    "outDir": "dist/types"
+  },
+  "include": ["packs/*.ts"],
+  "exclude": ["packs/*.test.ts"]
+}
