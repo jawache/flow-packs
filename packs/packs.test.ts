@@ -5,12 +5,13 @@
 // asserted here.
 
 import { describe, it, expect } from "vitest";
+import { fcis } from "./fcis.ts";
 import { git } from "./git.ts";
 import { secrets } from "./secrets.ts";
 import { typescript } from "./typescript.ts";
 import { defineConfig, loadConfig, pack, type Check, type Ctx } from "@jawache/flow";
 
-const packs = { git, secrets, typescript };
+const packs = { fcis, git, secrets, typescript };
 
 /** The entries a config loaded, or an empty list and the refusals in the failure message. */
 function loaded(result: ReturnType<typeof loadConfig>): { id: string; spec: unknown }[] {
@@ -35,6 +36,24 @@ function sentence(entries: readonly { id: string; spec: unknown }[]): (id: strin
 }
 
 describe("the packs", () => {
+  // A refusal when the coverage command fails says only that it failed: a timed-out test and a
+  // crashed run refuse exactly as a real shortfall does, and the lines below it say which.
+  it("says the coverage command failed, and what the lines below show", () => {
+    const said = sentence(
+      loaded(
+        loadConfig(
+          defineConfig([pack(packs.fcis, { files: ["src/core/**/*.ts"], homes: ["src/core/"], coverage: "make cov", example: "src/core/x.ts" })]),
+        ),
+      ),
+    )("fcis.pureCovered");
+    expect(said).toContain("The coverage command failed");
+    expect(said).toContain("a test failed");
+    expect(said).toContain("the run crashed");
+    expect(said).toContain("coverage fell under the bar");
+    expect(said).not.toContain("fell below the bar");
+    expect(said).not.toContain("add tests");
+  });
+
   // THE PARAMETERS, proved where they are meant to land: in the sentence a blocked person reads.
   //
   // Four packs take a repo fact, and three of them (fcis, justfile, tdd) hand it to a check, where

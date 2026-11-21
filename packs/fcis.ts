@@ -259,7 +259,7 @@ export const fcis = definePack("fcis", (repo: Convention) => {
       .description("Blocks a commit if the pure core's coverage gate fails — only runs when pure files changed.")
       .check(execPasses({ changed: repo.homes, run: repo.coverage }))
       .message(
-        "Coverage of the pure core fell below the bar — add tests for the new and changed code. (Runs only when pure files changed.)",
+        "The coverage command failed. The lines below show which it was: a test failed, the run crashed, or coverage fell under the bar. (Runs only when pure files changed.)",
       )
       .test({
         // Nothing pure changed: the gate does not run at all, and a red suite is not this rule's
