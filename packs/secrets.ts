@@ -182,11 +182,11 @@ export const secrets = definePack("secrets", (repo: Seam = {}) => {
     custody === "file"
       ? {
           keyPlace: `\`.env.keys\` holds the decryption key: \`${encrypt}\` writes it, and it is copied by hand to every machine that runs the code; it is never in git.`,
-          quietDecrypt: "- `ENV-R6` If a decrypt looks suspiciously quiet, check `.env.keys` exists before you commit anything.",
+          quietDecrypt: "If a decrypt looks suspiciously quiet, check `.env.keys` exists before you commit anything.",
         }
       : {
           keyPlace: "The decryption key is in this machine's OS secret store, where dotenvx put it; no file in this repo holds it.",
-          quietDecrypt: "- `ENV-R6` If a decrypt looks suspiciously quiet, stop before you commit anything.\n  why: The key is missing from this machine's OS secret store.",
+          quietDecrypt: "If a decrypt looks suspiciously quiet, stop before you commit anything.\n  why: The key is missing from this machine's OS secret store.",
         };
   // THE SEAM, AS A WHOLE INVOCATION, because the two spellings put the environment in different
   // places: a wrapper takes it as an argument (`just dx dev npm run build`), and dotenvx itself
@@ -218,7 +218,7 @@ export const secrets = definePack("secrets", (repo: Seam = {}) => {
         "  why: A runtime secret added anywhere else does not reach the running service.",
         "- `ENV-R4` Run everything that depends on env through the seam: the dev server, a migration, a one-off script.",
         "- `ENV-R5` Never `source .env`, and never hand-roll a dotenv import.",
-        quietDecrypt,
+        `- \`ENV-R6\` ${quietDecrypt}`,
       ].join("\n"),
     ),
 
