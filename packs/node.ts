@@ -99,10 +99,16 @@ export const node = definePack("node", {
     .description("When to reach for a package, how to vet it, and what a commit that adds one owes.")
     .text(
       [
-        "Before building it, check whether it's been solved: a maintained package that does the job beats hand-rolled code — ours has no users, no reviewers and no fixes coming.",
-        "When you DO add one, vet it: is it alive — downloads, recent releases, active issues? Most-downloaded isn't the bar (a newer, trending package can be the right call); the red flag is a package nobody uses and nobody maintains — that is the supply-chain risk (OWASP A03).",
-        "Adding a dependency is a decision that carries its reasoning: put `new-dep: <name> — <why, what else was checked>` on a line of its own in the commit message; the rule blocks a bare addition.",
-        "Pin the version; the lockfile change ships in the SAME commit.",
+        "Purpose. A maintained package that does the job beats hand-rolled code: ours has no users, no reviewers and no fixes coming. Adding a dependency is a decision that carries its reasoning.",
+        "## Rules",
+        "- `DEP-R1` Before you build it, check whether it has been solved.",
+        "- `DEP-R2` When you add a package, vet it: is it alive, with downloads, recent releases and active issues?",
+        "  why: A package nobody uses and nobody maintains is the supply-chain risk (OWASP A03).",
+        "- `DEP-R3` Do not take most-downloaded as the bar. A newer, trending package can be the right call.",
+        "- `DEP-R4` Put `new-dep: <name> — <why, what else was checked>` on a line of its own in the commit message.",
+        "  why: The rule blocks a bare addition.",
+        "- `DEP-R5` Pin the version.",
+        "- `DEP-R6` Ship the lockfile change in the same commit.",
       ].join("\n"),
     ),
 

@@ -126,10 +126,13 @@ export const fcis = definePack("fcis", (repo: Convention) => {
       .description("The functional-core/imperative-shell mental model, for when you're working in pure-core code.")
       .text(
         [
-          'Functional Core, Imperative Shell (Bernhardt, "Boundaries", SCNA 2012).',
-          "Decisions live in pure functions, in this repo's declared pure home (see the fcis entries in flow.config.ts): no I/O, no clock, no randomness, no env — inject them as arguments; determinism IS testability.",
-          "The shell is the wiring around the core — full of functions, but never of decisions: a branch that encodes a rule or a threshold belongs in pure, even if it is currently wrapped in an `await`. Values cross the boundary, never live objects.",
-          "The shell is covered by integration tests, not unit tests.",
+          "Purpose. Functional Core, Imperative Shell (Bernhardt, \"Boundaries\", SCNA 2012). Decisions live in pure functions, in this repo's declared pure home (see the fcis entries in flow.config.ts). The shell is the wiring around the core: full of functions, but never of decisions.",
+          "## Rules",
+          "- `FCS-R1` In pure code, use no I/O, no clock, no randomness and no env. Inject them as arguments.",
+          "  why: Determinism is testability.",
+          "- `FCS-R2` Put a branch that encodes a rule or a threshold in pure code, even if an `await` wraps it today.",
+          "- `FCS-R3` Pass values across the boundary, never live objects.",
+          "- `FCS-R4` Cover the shell with integration tests, not unit tests.",
         ].join("\n"),
       ),
 

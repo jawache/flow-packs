@@ -31,9 +31,9 @@ export interface Doors {
  * @setup A `docs/` folder holding exactly `user/` and `agent/`, each with its own index — an index
  * file under `docs/user/` for people and `docs/agent/README.md` as a list of pointers. The user
  * pages are markdown, and each one is one of the four kinds of the Diátaxis method
- * (https://diataxis.fr): a tutorial, a how-to guide, a reference or an explanation. The
- * breadcrumbs say so as guidance and refuse nothing, so how `docs/user/` is foldered inside stays
- * the repo's choice. The guardrail below refuses anything else at the top of the folder, so a repo
+ * (https://diataxis.fr): a tutorial, a how-to guide, a reference or an explanation, in the folder
+ * its kind names, `tutorials/`, `how-to/`, `reference/` or `explanation/`. The breadcrumbs say so as
+ * guidance and refuse nothing. The guardrail below refuses anything else at the top of the folder, so a repo
  * with a different shape either moves its pages or does not bind this pack.
  */
 export const docs = definePack("docs", (repo: Doors = {}) => {
@@ -48,13 +48,19 @@ export const docs = definePack("docs", (repo: Doors = {}) => {
     docs: breadcrumb()
       .at(fileChange)
       .on(`${root}/**`)
-      .description("The two audiences, the admission test, and the discipline that keeps docs true.")
+      .description(`The two folders: ${root}/user is the spec and a change starts there, ${root}/agent is archival context.`)
       .text(
         [
-          "Two audiences, two folders, opposite rules. `docs/user/` is for PEOPLE: markdown pages entered through an index file, and multimodal on purpose: images, SVGs and short recordings are encouraged wherever they explain better than sentences. The measure of a user doc is how little work the reader has to do.",
-          "`docs/agent/` is ARCHIVAL CONTEXT, loaded on demand, entered through README.md as an index of pointers. The admission test: could a fresh agent derive this from the code, the config or the guard layer? Then it does not belong — derivable content is replication, and replication goes stale silently while still reading as true. Only expensive syntheses live here: understanding that took hours to establish and would take hours to re-derive. Pointers outward, never copies inward; this folder must never compete with the breadcrumb layer.",
-          "The style law, both sides: state CURRENT FACTS in the present tense. No litigation, no rationale essays, no history — the journal owns the past. Where a decision would otherwise look wrong, one Chesterton-fence line pointing at the decision record, never a retelling.",
-          "The failure mode is silent staleness, not error: a doc stays literally correct while a whole task's machinery lands unmentioned, and nothing complains. So if the work you just shipped changed a boundary, a component's job or the lifecycle, the doc changes in the SAME commit.",
+          `Purpose. \`${root}/\` has two folders with opposite rules. \`${root}/user/\` is for people and is the spec: it states what the product does, and the code is made true to it. Each page is one Diátaxis kind, and its folder names the kind: \`tutorials/\`, \`how-to/\`, \`reference/\` and \`explanation/\`. \`${root}/agent/\` is archival context for agents, in Markdown, entered through README.md as an index of pointers.`,
+          "## Rules",
+          `- \`DCS-R1\` Start a change in behaviour as a change to the pages under \`${root}/user/\`, before any code.`,
+          "- `DCS-R2` If the code does not do what a page says, fix the code. Do not change the page.",
+          "- `DCS-R3` Put a new page in the folder of its kind, and give it a line in the index.",
+          "- `DCS-R4` Use a picture wherever it explains better than a sentence.",
+          `- \`DCS-R5\` Put in \`${root}/agent/\` only what a fresh agent could not derive from the code, the config or the guard layer.`,
+          "  why: Derivable content goes stale silently while still reading as true.",
+          "- `DCS-R6` Point outward from an agent doc. Never copy inward.",
+          "- `DCS-R7` State current facts in the present tense. Write no history and no rationale essay.",
         ].join("\n"),
       ),
 
@@ -63,20 +69,30 @@ export const docs = definePack("docs", (repo: Doors = {}) => {
     // this one fires only behind the user door and says how a page there is written.
     /**
      * Without it, every user page is written in whatever style that session had, and the docs read
-     * as ten authors. Every source it cites is a public standard — Diátaxis, the Google developer
-     * style guide — so nothing in it is one repo's taste.
+     * as ten authors. Its rules are the writing rules of the work skill, with nothing in them that is
+     * one repo's taste.
      */
     userDocsStyle: breadcrumb()
       .at(fileChange)
       .on(`${root}/user/**`)
-      .description("The ruled style of docs/user — markdown, the four Diátaxis kinds, the language rules, captured output.")
+      .description(`How a page under ${root}/user is written — one kind a page, the sentence rules, examples copied from a real run.`)
       .text(
         [
-          "The user docs have a ruled style — hold it:",
-          "· Markdown, and one page, one job: every page is exactly one of the four kinds of the Diátaxis method (https://diataxis.fr), never a mix. A TUTORIAL is a lesson that teaches by doing, along one path. A HOW-TO GUIDE solves one task the reader already has, and is titled \"How to …\". A REFERENCE page states facts for lookup, no narrative. An EXPLANATION says why, and the other kinds link to it rather than inline it.",
-          "· Language (per the Google developer style guide, https://developers.google.com/style): second person, present tense, active voice. Define a term on first use or do not use it. Spend words in proportion to difficulty — one sentence for the simple thing, the full walkthrough for the hard one. No \"simply\", no filler.",
-          "· Code examples are TypeScript, formatted as the repo formats it — a config example is copied from a file that compiles, never typed into the page.",
-          "· Every claim and printed output is captured from the shipped binary, never paraphrased — re-run the example before you change its text.",
+          "Purpose. A user page is read by a person at work, and by the builder who makes the code true to it. A tutorial is one path, step by step, for learning by doing. A how-to is the steps to one goal, titled with the task. A reference page is for looking up: commands, keys, fields, states, errors. An explanation discusses a concept: what it is and why.",
+          "## Rules",
+          "- `UDS-R1` Write each page as one kind, never a mix.",
+          "- `UDS-R2` Put the headline first, in every page and section.",
+          "- `UDS-R3` Write one fact in each sentence, in under 25 words.",
+          "- `UDS-R4` Write in the present tense, with \"you\" for the reader. Never write \"will\".",
+          "- `UDS-R5` Say what happens, never what does not.",
+          "- `UDS-R6` Describe the mechanism: what is called, with what, and what is returned. Do not use a metaphor.",
+          "- `UDS-R7` Use exact names and numbers, and one name for each thing.",
+          "- `UDS-R8` Define a term where it first appears.",
+          "- `UDS-R9` Use numbered lists for steps, tables for items that share fields, and code blocks for anything typed or printed.",
+          "- `UDS-R10` Add words in proportion to the change: a flag is a row, a new command is a section.",
+          "- `UDS-R11` Cut every word that carries nothing.",
+          "- `UDS-R12` Say each thing once, in one place, and link to it elsewhere.",
+          "- `UDS-R13` Copy an example or printed output from a real run. Never type it from memory.",
         ].join("\n"),
       ),
 

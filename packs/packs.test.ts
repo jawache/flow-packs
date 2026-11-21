@@ -5,13 +5,14 @@
 // asserted here.
 
 import { describe, it, expect } from "vitest";
+import { docs } from "./docs.ts";
 import { fcis } from "./fcis.ts";
 import { git } from "./git.ts";
 import { secrets } from "./secrets.ts";
 import { typescript } from "./typescript.ts";
 import { defineConfig, loadConfig, pack, type Check, type Ctx } from "@jawache/flow";
 
-const packs = { fcis, git, secrets, typescript };
+const packs = { docs, fcis, git, secrets, typescript };
 
 /** The entries a config loaded, or an empty list and the refusals in the failure message. */
 function loaded(result: ReturnType<typeof loadConfig>): { id: string; spec: unknown }[] {
@@ -56,8 +57,8 @@ describe("the packs", () => {
 
   // THE PARAMETERS, proved where they are meant to land: in the sentence a blocked person reads.
   //
-  // Four packs take a repo fact, and three of them (fcis, justfile, tdd) hand it to a check, where
-  // the entry's own `block` case already drives it. `git` and `typescript` hand theirs to a MESSAGE
+  // Five packs take a repo fact, and three of them (fcis, justfile, tdd) hand it to a check, where
+  // the entry's own `block` case already drives it. `git`, `typescript` and `docs` hand theirs to a MESSAGE
   // as well — the whole reason they became parameters is that a hard-coded `just release` names the
   // wrong command in every repo that spells it differently, and names it at the worst moment. A
   // case cannot see a message, so this is the one place that can say so.
@@ -66,6 +67,7 @@ describe("the packs", () => {
       defineConfig([
         pack(packs.git, { release: "cargo release" }),
         pack(packs.typescript, { typecheck: "make types", lint: "make lint" }),
+        pack(packs.docs, { root: "documentation" }),
       ]),
     );
     const entries = loaded(result);
@@ -74,6 +76,7 @@ describe("the packs", () => {
     expect(said("git.node.noHandEditedVersion")).toContain("cargo release");
     expect(said("typescript.commitRunsTsc")).toContain("make types");
     expect(said("typescript.commitRunsEslint")).toContain("make lint");
+    expect(said("docs.docs")).toContain("`documentation/user/`");
     // And nothing carries the fleet's own spelling any more — the point of the extraction.
     for (const entry of entries) {
       const spec = entry.spec as { message?: string; text?: string };
@@ -125,12 +128,12 @@ describe("the packs", () => {
       "The decryption key is in this machine's OS secret store, where dotenvx put it; no file in this repo holds it.",
     );
     expect(native("secrets.orientation")).toContain(
-      "If a decrypt looks suspiciously quiet, the key is missing from this machine's OS secret store; stop before you commit anything.",
+      "If a decrypt looks suspiciously quiet, stop before you commit anything.\n  why: The key is missing from this machine's OS secret store.",
     );
     expect(native("secrets.orientation")).not.toContain("check `.env.keys` exists");
     // `.env.keys` stays in the local tier under the OS store too, worded so it does not contradict
     // the sentence above: the agent must not go looking for a key file that is not there.
-    expect(native("secrets.orientation")).toContain("`.env.keys` (the decryption key, when it is kept in a file — the ONE file you never read)");
+    expect(native("secrets.orientation")).toContain("`.env.keys` (the decryption key, when it is kept in a file)");
     expect(said({ custody: "native" })("secrets.orientation")).toBe(native("secrets.orientation"));
 
     const file = said({ custody: "file" });
