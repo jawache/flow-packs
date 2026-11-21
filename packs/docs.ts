@@ -48,7 +48,7 @@ export const docs = definePack("docs", (repo: Doors = {}) => {
     docs: breadcrumb()
       .at(fileChange)
       .on(`${root}/**`)
-      .description("The two folders: docs/user is the spec and a change starts there, docs/agent is archival context.")
+      .description(`The two folders: ${root}/user is the spec and a change starts there, ${root}/agent is archival context.`)
       .text(
         [
           `Purpose. \`${root}/\` has two folders with opposite rules. \`${root}/user/\` is for people and is the spec: it states what the product does, and the code is made true to it. Each page is one Diátaxis kind, and its folder names the kind: \`tutorials/\`, \`how-to/\`, \`reference/\` and \`explanation/\`. \`${root}/agent/\` is archival context for agents, in Markdown, entered through README.md as an index of pointers.`,
@@ -75,7 +75,7 @@ export const docs = definePack("docs", (repo: Doors = {}) => {
     userDocsStyle: breadcrumb()
       .at(fileChange)
       .on(`${root}/user/**`)
-      .description("How a page under docs/user is written — one kind a page, the sentence rules, examples copied from a real run.")
+      .description(`How a page under ${root}/user is written — one kind a page, the sentence rules, examples copied from a real run.`)
       .text(
         [
           "Purpose. A user page is read by a person at work, and by the builder who makes the code true to it. A tutorial is one path, step by step, for learning by doing. A how-to is the steps to one goal, titled with the task. A reference page is for looking up: commands, keys, fields, states, errors. An explanation discusses a concept: what it is and why.",
