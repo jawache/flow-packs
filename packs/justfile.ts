@@ -130,7 +130,7 @@ export const justfile = definePack("justfile", (repo: Catalogue) => {
    */
   orientation: breadcrumb()
     .at(session)
-    .description("Where the repo's tooling is catalogued, what earns a recipe, and what stays a script.")
+    .description("Where the repo's tooling is catalogued, and when a command becomes a script.")
     .text(
       [
         `Purpose. The justfile is this repo's tool catalogue: the single source of truth for the tooling you can confidently reach for. A recipe means: reach for this repeatedly, with confidence. The code behind a recipe is in \`${tools}/\`, and one-off scripts are there too.`,

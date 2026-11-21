@@ -31,9 +31,9 @@ export interface Doors {
  * @setup A `docs/` folder holding exactly `user/` and `agent/`, each with its own index — an index
  * file under `docs/user/` for people and `docs/agent/README.md` as a list of pointers. The user
  * pages are markdown, and each one is one of the four kinds of the Diátaxis method
- * (https://diataxis.fr): a tutorial, a how-to guide, a reference or an explanation. The
- * breadcrumbs say so as guidance and refuse nothing, so how `docs/user/` is foldered inside stays
- * the repo's choice. The guardrail below refuses anything else at the top of the folder, so a repo
+ * (https://diataxis.fr): a tutorial, a how-to guide, a reference or an explanation, in the folder
+ * its kind names, `tutorials/`, `how-to/`, `reference/` or `explanation/`. The breadcrumbs say so as
+ * guidance and refuse nothing. The guardrail below refuses anything else at the top of the folder, so a repo
  * with a different shape either moves its pages or does not bind this pack.
  */
 export const docs = definePack("docs", (repo: Doors = {}) => {
@@ -48,7 +48,7 @@ export const docs = definePack("docs", (repo: Doors = {}) => {
     docs: breadcrumb()
       .at(fileChange)
       .on(`${root}/**`)
-      .description("The two audiences, the admission test, and the discipline that keeps docs true.")
+      .description("The two folders: docs/user is the spec and a change starts there, docs/agent is archival context.")
       .text(
         [
           `Purpose. \`${root}/\` has two folders with opposite rules. \`${root}/user/\` is for people and is the spec: it states what the product does, and the code is made true to it. Each page is one Diátaxis kind, and its folder names the kind: \`tutorials/\`, \`how-to/\`, \`reference/\` and \`explanation/\`. \`${root}/agent/\` is archival context for agents, in Markdown, entered through README.md as an index of pointers.`,
@@ -69,13 +69,13 @@ export const docs = definePack("docs", (repo: Doors = {}) => {
     // this one fires only behind the user door and says how a page there is written.
     /**
      * Without it, every user page is written in whatever style that session had, and the docs read
-     * as ten authors. Every source it cites is a public standard — Diátaxis, the Google developer
-     * style guide — so nothing in it is one repo's taste.
+     * as ten authors. Its rules are the writing rules of the work skill, with nothing in them that is
+     * one repo's taste.
      */
     userDocsStyle: breadcrumb()
       .at(fileChange)
       .on(`${root}/user/**`)
-      .description("The ruled style of docs/user — markdown, the four Diátaxis kinds, the language rules, captured output.")
+      .description("How a page under docs/user is written — one kind a page, the sentence rules, examples copied from a real run.")
       .text(
         [
           "Purpose. A user page is read by a person at work, and by the builder who makes the code true to it. A tutorial is one path, step by step, for learning by doing. A how-to is the steps to one goal, titled with the task. A reference page is for looking up: commands, keys, fields, states, errors. An explanation discusses a concept: what it is and why.",
