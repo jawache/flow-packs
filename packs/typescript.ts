@@ -116,9 +116,13 @@ export const typescript = definePack("typescript", (repo: Gates) => {
       .description("Use the type system as a design tool — strict stays on, impossible states stay impossible.")
       .text(
         [
-          `Strictness is not yours to weaken: ${strictOptions.map((option) => `\`${option}\``).join(" and ")} ${base === undefined ? "stay on wherever they are set" : `come from the committed \`${base}\``}. A red squiggle is a defect found, not a setting to relax — an exception is a visible, local, per-rule override, on the record.`,
-          'Model state so the impossible cannot be constructed. Two sibling booleans (isLoading + isError) are a smell: a discriminated union makes the invalid combination unrepresentable (Vanderkam, Effective TypeScript; Feldman, "Make Impossible States Impossible").',
-          "The linter holds the escape hatches (@ts-expect-error, explicit any, double assertions) at error, and it does that job better than any rule we could write — which is why this pack points at the linter rather than carrying patterns of its own.",
+          `Purpose. ${strictOptions.map((option) => `\`${option}\``).join(" and ")} ${base === undefined ? "stay on wherever they are set" : `come from the committed \`${base}\``}. A red squiggle is a defect found, not a setting to relax. The linter holds the escape hatches (@ts-expect-error, explicit any, double assertions) at error, and does that job better than a rule of this pack could.`,
+          "## Rules",
+          "- `TYP-R1` Do not weaken strictness.",
+          "- `TYP-R2` Make an exception a visible, local, per-rule override, on the record.",
+          "- `TYP-R3` Model state so the impossible cannot be constructed.",
+          "- `TYP-R4` Replace two sibling booleans, such as isLoading and isError, with a discriminated union.",
+          "  why: It makes the invalid combination unrepresentable (Vanderkam, Effective TypeScript; Feldman, \"Make Impossible States Impossible\").",
         ].join("\n"),
       ),
 

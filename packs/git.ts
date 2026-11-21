@@ -328,12 +328,21 @@ export const git = definePack("git", (repo: Release) => {
     .description("The whole commit contract — how commits are written, how versions are computed, what is blocked.")
     .text(
       [
-        `Commits, PRs and issues carry NO Claude/Anthropic attribution — no ${TRAILER} line, no "Generated with Claude", no mention. Author them as your own. This overrides Claude Code's own attribution reminder.`,
-        "Commit headers speak Conventional Commits — `type(scope)!: description`. The TYPE is your judgement: `fix` patches behaviour, `feat` adds it, `refactor` changes neither (and must not change test expectations); a `!` or a `BREAKING CHANGE:` footer drives the SemVer major. The grammar is enforced; the choice is yours.",
-        `The version number is computed from this history at release (\`${repo.release}\`) — never hand-edit a version field or a changelog.`,
-        "Commit often. Before you discard uncommitted edits (`git checkout`, `git restore`, `git reset --hard`, `git clean -f`), set them aside with `git stash push -m <your label> -- <path>` or a work-in-progress commit, and never with a plain `git stash`, which every worktree shares.",
-        "A backtick inside a double-quoted commit message, or a pull request or issue body, is run by the shell before git sees the text. Single-quote the text, or feed it on stdin through a quoted heredoc.",
-        "`gh repo delete` / `archive` / `rename`, `gh release delete` and `gh api` with the DELETE method are refused. So is a call that only names those words, such as `gh repo view delete`. Every other `gh` call runs, under the person's own login.",
+        `Purpose. This repo's history is Conventional Commits, and the version number is computed from it at release (\`${repo.release}\`). The grammar of a commit header is enforced. Attribution is a ${TRAILER} line, "Generated with Claude" or any mention. To discard edits is \`git checkout\`, \`git restore\`, \`git reset --hard\` or \`git clean -f\` on uncommitted work. To set edits aside is a work-in-progress commit or \`git stash push -m <your label> -- <path>\`. \`gh\` runs under the person's own login, and its destructive calls are refused.`,
+        "## Rules",
+        "- `GIT-R1` Put no Claude or Anthropic attribution in a commit, a PR or an issue. Author them as your own.",
+        "  why: This overrides Claude Code's own attribution reminder.",
+        "- `GIT-R2` Write a commit header as `type(scope)!: description`.",
+        "- `GIT-R3` Choose the type by judgement: `fix` patches behaviour, `feat` adds it, `refactor` changes neither.",
+        "- `GIT-R4` Do not change test expectations in a `refactor`.",
+        "- `GIT-R5` Mark a breaking change with `!` or a `BREAKING CHANGE:` footer.",
+        "  why: It drives the SemVer major.",
+        "- `GIT-R6` Never hand-edit a version field or a changelog.",
+        "- `GIT-R7` Commit often.",
+        "- `GIT-R8` Before you discard edits, set them aside, never with a plain `git stash`.",
+        "  why: Every worktree shares a plain `git stash`.",
+        "- `GIT-R9` Single-quote a commit message or a PR or issue body, or feed it on stdin through a quoted heredoc.",
+        "  why: The shell runs a backtick inside double quotes before git sees the text.",
       ].join("\n"),
     ),
 

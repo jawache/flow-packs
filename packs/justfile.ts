@@ -133,10 +133,12 @@ export const justfile = definePack("justfile", (repo: Catalogue) => {
     .description("Where the repo's tooling is catalogued, what earns a recipe, and what stays a script.")
     .text(
       [
-        "The justfile is this repo's tool catalogue — the single source of truth for the tooling you can confidently reach for. Run `just` FIRST to see what you can do here; do not discover commands from package.json or memory.",
-        `A recipe means: reach for this repeatedly, with confidence. Recipes stay thin — the code behind one lives in \`${tools}/\`; one-off operational scripts live there too and never become recipes.`,
-        "A one-off command or chain is fine to run directly. Anything you'll run more than once becomes a script. A script earns a recipe (with a [doc(\"…\")]) only when it is run REGULARLY, across tasks; who runs it is not the test. A one-off or per-release step (a seed, a backfill, a data fix) runs as a script by hand and gets no recipe.",
-        "If a service offers a CLI, prefer it over an MCP — a command is recorded, guardable and reproducible.",
+        `Purpose. The justfile is this repo's tool catalogue: the single source of truth for the tooling you can confidently reach for. A recipe means: reach for this repeatedly, with confidence. The code behind a recipe is in \`${tools}/\`, and one-off scripts are there too.`,
+        "## Rules",
+        "- `JST-R1` Run `just` first to see what you can do here. Do not discover commands from package.json or memory.",
+        `- \`JST-R2\` Run a one-off command or chain directly. If you run it more than once, make it a script in \`${tools}/\`.`,
+        "- `JST-R3` If a service offers a CLI, prefer it over an MCP.",
+        "  why: A command is recorded, guardable and reproducible.",
       ].join("\n"),
     ),
 
@@ -151,9 +153,12 @@ export const justfile = definePack("justfile", (repo: Catalogue) => {
     .description(`The fork every file in ${tools}/ faces — catalogue entry, or one-shot.`)
     .text(
       [
-        `You are writing into \`${tools}/\` — the implementation layer, not the catalogue. Decide which of two things this file is:`,
-        `Run REGULARLY, across tasks — part of the catalogue? Then it also needs a thin justfile recipe pointing at it, with a [doc("…")] — a tool that exists only in \`${tools}/\` is undiscoverable.`,
-        "A one-off (a migration, a backfill, a seed, a release's data step, a workflow step)? Then it gets NO recipe, even if a human runs it and even if it runs once per environment — one-shots promoted into the catalogue are how `just --list` becomes noise and stops being trustworthy.",
+        `Purpose. You are writing into \`${tools}/\`, the implementation layer, not the catalogue. A one-off here is a script such as a migration, a backfill, a seed, a release's data step or a workflow step.`,
+        "## Rules",
+        "- `TLH-R1` If this script will be needed again in several future issues, propose a thin justfile recipe that points at it, with a [doc(\"…\")].",
+        `  why: A tool that exists only in \`${tools}/\` is undiscoverable.`,
+        "- `TLH-R2` Otherwise give it no recipe, even if it runs once on staging and once at the deploy.",
+        "  why: One-shots promoted into the catalogue are how `just --list` becomes noise and stops being trustworthy.",
       ].join("\n"),
     ),
 

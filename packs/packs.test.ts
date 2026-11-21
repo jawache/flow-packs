@@ -106,12 +106,13 @@ describe("the packs", () => {
       "The decryption key is in this machine's OS secret store, where dotenvx put it; no file in this repo holds it.",
     );
     expect(native("secrets.orientation")).toContain(
-      "If a decrypt looks suspiciously quiet, the key is missing from this machine's OS secret store; stop before you commit anything.",
+      "If a decrypt looks suspiciously quiet, stop before you commit anything.\n  why: The key is missing from this machine's OS secret store.",
     );
     expect(native("secrets.orientation")).not.toContain("check `.env.keys` exists");
     // `.env.keys` stays in the local tier under the OS store too, worded so it does not contradict
     // the sentence above: the agent must not go looking for a key file that is not there.
-    expect(native("secrets.orientation")).toContain("`.env.keys` (the decryption key, when it is kept in a file — the ONE file you never read)");
+    expect(native("secrets.orientation")).toContain("`.env.keys` (the decryption key, when it is kept in a file)");
+    expect(native("secrets.orientation")).toContain("Never read `.env.keys`.");
     expect(said({ custody: "native" })("secrets.orientation")).toBe(native("secrets.orientation"));
 
     const file = said({ custody: "file" });

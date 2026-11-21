@@ -65,9 +65,20 @@ export const tdd = definePack("tdd", (repo: Suite) => {
       .description("How to spend testing effort (mostly integration) and what to test (behaviour, not implementation).")
       .text(
         [
-          "Spend where confidence-per-cost is highest (the Testing Trophy, Kent C. Dodds): static analysis base, modest unit layer, DOMINANT integration layer, thin e2e cap.",
-          "Test behaviour as the user sees it, never implementation details — if a behaviour-preserving refactor breaks a test, the test was wrong.",
-          "Mock only at owned boundaries: the network edge (MSW), not your own modules.",
+          "Purpose. A test goes on the lowest rung that proves it: no test, a unit test, an integration test, a step in an existing end-to-end test, a new end-to-end test. Logic is what code works out from its inputs: a string it builds, an order it sorts into, a value it parses. An end-to-end test follows one path a person takes through the product, across a process boundary, such as a click in a browser that changes what is stored.",
+          "## Rules",
+          "- `TDD-R1` Put a test on the lowest rung that proves it, and be able to say why the rung below cannot.",
+          "- `TDD-R2` Write no test when another test already fails if this breaks, when the code has no logic, or when a compiler, a linter or a guardrail already holds it.",
+          "- `TDD-R3` Prove logic with a unit test, once. Never prove it again in an integration test or an end-to-end test.",
+          "- `TDD-R4` If the logic sits in code that starts a program, reads a file or calls the network, move the logic into a pure function first, then unit test the function.",
+          "- `TDD-R5` Write an integration test to prove one call to a real program: what is passed to it, and what comes back. Write one test for each call.",
+          "- `TDD-R6` Use an end-to-end test only for what two processes must agree on, which no unit test and integration test together can prove.",
+          "- `TDD-R7` When the product gains a behaviour on a path an end-to-end test already follows, add a step to that test. Do not write a new test.",
+          "- `TDD-R8` Ask the human before you add a new end-to-end test.",
+          "- `TDD-R9` Wait on a condition, never on the clock. To test that something does not happen, keep checking for a named length of time, and fail if it ever does.",
+          "- `TDD-R10` Test behaviour as the user sees it, never implementation details.",
+          "  why: If a behaviour-preserving refactor breaks a test, the test was wrong.",
+          "- `TDD-R11` Mock only at boundaries you own, such as the network edge (MSW). Never mock your own modules.",
         ].join("\n"),
       ),
 

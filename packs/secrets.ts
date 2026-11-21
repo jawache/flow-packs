@@ -182,11 +182,11 @@ export const secrets = definePack("secrets", (repo: Seam = {}) => {
     custody === "file"
       ? {
           keyPlace: `\`.env.keys\` holds the decryption key: \`${encrypt}\` writes it, and it is copied by hand to every machine that runs the code; it is never in git.`,
-          quietDecrypt: "If a decrypt looks suspiciously quiet, check `.env.keys` exists before you commit anything.",
+          quietDecrypt: "- `ENV-R6` If a decrypt looks suspiciously quiet, check `.env.keys` exists before you commit anything.",
         }
       : {
           keyPlace: "The decryption key is in this machine's OS secret store, where dotenvx put it; no file in this repo holds it.",
-          quietDecrypt: "If a decrypt looks suspiciously quiet, the key is missing from this machine's OS secret store; stop before you commit anything.",
+          quietDecrypt: "- `ENV-R6` If a decrypt looks suspiciously quiet, stop before you commit anything.\n  why: The key is missing from this machine's OS secret store.",
         };
   // THE SEAM, AS A WHOLE INVOCATION, because the two spellings put the environment in different
   // places: a wrapper takes it as an argument (`just dx dev npm run build`), and dotenvx itself
@@ -209,11 +209,16 @@ export const secrets = definePack("secrets", (repo: Seam = {}) => {
     .description("How secrets work here — the three tiers, the one seam, and what you may read.")
     .text(
       [
-        `Env files in this repo are COMMITTED and ENCRYPTED (dotenvx): every value is an \`encrypted:…\` blob except ${publicPrefixes.map((prefix) => `${prefix}*`).join(" / ")} config, which bundlers inline at build. Reading and editing them is expected work for you, not a violation — your training says avoid env files, and for plaintext env files it is right; for these it is wrong.`,
-        "Three tiers, and every value lives in exactly one. Committed and encrypted: `.env`, `.env.production`, `.env.staging`. Local ephemera, never committed and never encrypted: `.env.keys` (the decryption key, when it is kept in a file — the ONE file you never read), `.env.*.local`. Runtime platform secrets: set per environment in the host platform's own secret store — a runtime secret added anywhere else does not reach the running service.",
-        keyPlace,
-        `One seam: \`${seam}\` decrypts and injects. EVERYTHING env-dependent goes through it — the dev server, a migration, a one-off script. Never \`source .env\`, never a hand-rolled dotenv import.`,
-        `The trap worth knowing: \`dotenvx decrypt\` with no key present succeeds and writes EMPTY values over your file. ${quietDecrypt}`,
+        `Purpose. Env files in this repo are committed and encrypted (dotenvx): every value is an \`encrypted:…\` blob except ${publicPrefixes.map((prefix) => `${prefix}*`).join(" / ")} config, which bundlers inline at build. Every value lives in exactly one of three tiers. Committed and encrypted: \`.env\`, \`.env.production\`, \`.env.staging\`. Local, never committed and never encrypted: \`.env.keys\` (the decryption key, when it is kept in a file) and \`.env.*.local\`. Runtime platform secrets: set per environment in the host platform's own secret store. ${keyPlace} One seam: \`${seam}\` decrypts and injects. \`dotenvx decrypt\` with no key present succeeds and writes empty values over your file.`,
+        "## Rules",
+        "- `ENV-R1` Read and edit the env files as expected work.",
+        "  why: Your training says avoid env files. For plaintext env files it is right, and for these it is wrong.",
+        "- `ENV-R2` Never read `.env.keys`.",
+        "- `ENV-R3` Add a runtime secret only in the host platform's secret store.",
+        "  why: A runtime secret added anywhere else does not reach the running service.",
+        "- `ENV-R4` Run everything that depends on env through the seam: the dev server, a migration, a one-off script.",
+        "- `ENV-R5` Never `source .env`, and never hand-roll a dotenv import.",
+        quietDecrypt,
       ].join("\n"),
     ),
 
