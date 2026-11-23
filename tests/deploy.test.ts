@@ -1,0 +1,114 @@
+// What `just deploy` does to a remote, in clones whose origin is a bare repo. The release itself and
+// the check are stood in for (DEPLOY_*), so this runs in seconds; the real cut is held by the last test.
+
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, readdirSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+
+const PACKAGE = resolve(import.meta.dirname, "..");
+const roots: string[] = [];
+afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
+
+function git(cwd: string, ...args: string[]): string {
+  return execFileSync("git", args, { cwd, encoding: "utf8", env: { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" } }).trim();
+}
+
+const RELEASE = "git commit -q --allow-empty -m 'chore(release): 0.1.1' && git tag -a v0.1.1 -m v0.1.1";
+
+/** A clone at tag v0.1.0 whose origin is a bare repo that holds it, then `after` commit headers. */
+function scene(after: string[]): { clone: string; bare: string } {
+  const root = mkdtempSync(join(tmpdir(), "deploy-test-"));
+  roots.push(root);
+  const bare = join(root, "origin.git");
+  const clone = join(root, "clone");
+  git(root, "init", "-q", "--bare", "-b", "main", bare);
+  git(root, "init", "-q", "-b", "main", clone);
+  git(clone, "remote", "add", "origin", bare);
+  git(clone, "commit", "-q", "--allow-empty", "-m", "chore: start");
+  git(clone, "tag", "-a", "v0.1.0", "-m", "v0.1.0");
+  for (const header of after) git(clone, "commit", "-q", "--allow-empty", "-m", header);
+  git(clone, "push", "-q", "origin", "HEAD", "v0.1.0");
+  return { clone, bare };
+}
+
+const refs = (bare: string): string => git(bare, "for-each-ref");
+
+function deploy(clone: string, env: Record<string, string> = {}): { status: number | null; out: string } {
+  const ran = spawnSync("node", [join(PACKAGE, "tools", "deploy.ts")], {
+    cwd: clone,
+    encoding: "utf8",
+    stdin: "ignore",
+    env: { ...process.env, DEPLOY_INSTALL: "true", DEPLOY_CHECK: "true", DEPLOY_RELEASE: RELEASE, ...env },
+  } as Parameters<typeof spawnSync>[2] & { stdin: string });
+  return { status: ran.status, out: `${ran.stdout}${ran.stderr}` };
+}
+
+describe("just deploy", () => {
+  it("leaves the bare repo with the branch's head and the new tag after a fix", () => {
+    const { clone, bare } = scene(["fix(x): a bug"]);
+    const ran = deploy(clone);
+    expect(ran.status, ran.out).toBe(0);
+    const head = git(clone, "rev-parse", "HEAD");
+    expect(git(bare, "rev-parse", "refs/heads/main")).toBe(head);
+    expect(git(bare, "rev-parse", "refs/tags/v0.1.1^{commit}")).toBe(git(clone, "rev-parse", "v0.1.1^{commit}"));
+  });
+
+  it("pushes nothing when the check fails", () => {
+    const { clone, bare } = scene(["feat: new"]);
+    const before = refs(bare);
+    const ran = deploy(clone, { DEPLOY_CHECK: "false" });
+    expect(ran.status).not.toBe(0);
+    expect(refs(bare)).toBe(before);
+    expect(git(clone, "tag", "-l", "v0.1.1")).toBe("");
+  });
+
+  it("pushes nothing when the release fails", () => {
+    const { clone, bare } = scene(["feat: new"]);
+    const before = refs(bare);
+    expect(deploy(clone, { DEPLOY_RELEASE: "false" }).status).not.toBe(0);
+    expect(refs(bare)).toBe(before);
+  });
+
+  it("with only a docs commit since the last tag says so in one line and changes nothing", () => {
+    const { clone, bare } = scene(["docs: words"]);
+    const before = { refs: refs(bare), log: git(clone, "log", "-1", "--format=%H"), tags: git(clone, "tag") };
+    // A step that would fail if it ran proves the decision comes first.
+    const ran = deploy(clone, { DEPLOY_INSTALL: "false" });
+    expect(ran.status).toBe(0);
+    expect(ran.out.trim().split("\n")).toHaveLength(1);
+    expect({ refs: refs(bare), log: git(clone, "log", "-1", "--format=%H"), tags: git(clone, "tag") }).toEqual(before);
+  });
+
+  it("pushes a release that is tagged here and not on origin, whatever landed since", () => {
+    const { clone, bare } = scene(["fix: a bug"]);
+    git(clone, "commit", "-q", "--allow-empty", "-m", "chore(release): 0.1.1");
+    git(clone, "tag", "-a", "v0.1.1", "-m", "v0.1.1");
+    git(clone, "commit", "-q", "--allow-empty", "-m", "docs: after");
+    const ran = deploy(clone, { DEPLOY_CHECK: "false", DEPLOY_RELEASE: "false" });
+    expect(ran.status, ran.out).toBe(0);
+    expect(git(bare, "tag", "-l", "v0.1.1")).toBe("v0.1.1");
+    expect(git(bare, "rev-parse", "refs/heads/main")).toBe(git(clone, "rev-parse", "HEAD"));
+  });
+});
+
+describe("just release", () => {
+  it("changes no remote", () => {
+    const { bare } = scene([]);
+    // A real cut, in a clone of this repo with this checkout's dependencies, beside a bare origin.
+    const root = mkdtempSync(join(tmpdir(), "release-test-"));
+    roots.push(root);
+    const real = join(root, "flow-packs");
+    execFileSync("git", ["clone", "-q", "--local", PACKAGE, real]);
+    git(real, "remote", "set-url", "origin", bare);
+    mkdirSync(join(real, "node_modules"));
+    for (const name of readdirSync(join(PACKAGE, "node_modules"))) symlinkSync(join(PACKAGE, "node_modules", name), join(real, "node_modules", name));
+    const before = refs(bare);
+    const tagsBefore = git(real, "tag", "-l", "v*");
+    const ran = spawnSync("node", ["tools/release.ts", "cut"], { cwd: real, encoding: "utf8", env: { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" } });
+    expect(ran.status, ran.stderr).toBe(0);
+    expect(git(real, "tag", "-l", "v*")).not.toBe(tagsBefore);
+    expect(refs(bare)).toBe(before);
+  }, 60_000);
+});

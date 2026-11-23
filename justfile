@@ -59,3 +59,7 @@ release-dry:
 release-check *args:
     just test-commit
     node tools/release.ts check "$@"
+
+[doc("Release and push, only when a feat, a fix or a breaking change landed since the last tag: install from the lockfile, `just release-check`, `just release`, then push the branch and the new tag. A failed step stops it before any later one. A release tagged here and missing on origin is pushed by the next deploy. Never prompts.")]
+deploy:
+    node tools/deploy.ts
