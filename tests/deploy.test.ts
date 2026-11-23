@@ -15,7 +15,8 @@ function git(cwd: string, ...args: string[]): string {
   return execFileSync("git", args, { cwd, encoding: "utf8", env: { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" } }).trim();
 }
 
-const RELEASE = "git commit -q --allow-empty -m 'chore(release): 0.1.1' && git tag -a v0.1.1 -m v0.1.1";
+// As release.ts does: the release commit, its tag, then the tag merged back with `-s ours`.
+const RELEASE = "git commit -q --allow-empty -m 'chore(release): 0.1.1' && git tag -a v0.1.1 -m v0.1.1 && git merge -q -s ours --no-ff -m 'chore(release): v0.1.1 is reachable from the branch' v0.1.1";
 
 /** A clone at tag v0.1.0 whose origin is a bare repo that holds it, then `after` commit headers. */
 function scene(after: string[]): { clone: string; bare: string } {
@@ -40,7 +41,7 @@ function deploy(clone: string, env: Record<string, string> = {}): { status: numb
     cwd: clone,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, DEPLOY_INSTALL: "true", DEPLOY_CHECK: "true", DEPLOY_RELEASE: RELEASE, ...env },
+    env: { ...process.env, DEPLOY_INSTALL: "true", DEPLOY_CHECK: "true", DEPLOY_RELEASE: RELEASE, DEPLOY_WORK: "true", ...env },
   });
   return { status: ran.status, out: `${ran.stdout}${ran.stderr}` };
 }
@@ -129,6 +130,20 @@ describe("a deploy that fails", () => {
     const filed = readFileSync(join(clone, "..", "filed.md"), "utf8");
     expect(filed.split("\n")[0]).toBe("The release after flow-packs-9 failed");
     expect(filed).toMatch(/one\ntwo\n[^\n]*failed \(exit 3\)[^\n]*\n```\n$/);
+  });
+
+  it("titles the issue after the merged issue even when the failure comes after the release's own merge", () => {
+    const { clone } = scene(["fix: a bug"]);
+    git(clone, "checkout", "-q", "-b", "side");
+    git(clone, "commit", "-q", "--allow-empty", "-m", "side work");
+    git(clone, "checkout", "-q", "main");
+    git(clone, "merge", "-q", "--no-ff", "-m", "Merge remote-tracking branch 'origin/flow-packs-9-x'", "side");
+    const stub = fakeWork(join(clone, ".."));
+    const ran = deploy(clone, { DEPLOY_WORK: stub, DEPLOY_RELEASE: `${RELEASE} && git remote set-url origin ${join(clone, "no-such-repo.git")}` });
+    expect(ran.status).not.toBe(0);
+    const filed = readFileSync(join(clone, "..", "filed.md"), "utf8");
+    expect(filed.split("\n")[0]).toBe("The release after flow-packs-9 failed");
+    expect(filed).toContain("the step `push`");
   });
 
   it("files nothing when there is nothing to release", () => {

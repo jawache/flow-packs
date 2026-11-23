@@ -15,7 +15,7 @@ export function out(program: string, args: readonly string[], cwd: string): stri
   return ran.stdout.trim();
 }
 
-/** Run a shell line with no terminal input, its output and errors interleaved: show it, and add its lines to `sink` even when it fails. Throws when it fails. */
+/** Run a shell line with no terminal input, its output and errors interleaved: show it when the line ends, not as it goes, and add its lines to `sink` even when it fails. Throws when it fails. */
 export function tee(line: string, cwd: string, sink: string[]): void {
   const ran = spawnSync("sh", ["-c", `exec 2>&1; ${line}`], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], maxBuffer: 256 * 1024 * 1024 });
   process.stdout.write(ran.stdout);

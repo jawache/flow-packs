@@ -1,10 +1,10 @@
 // tools/release-failure.ts — the issue a failed deploy files. Pure: it reads no repo and runs nothing.
 
 /** How many of the last printed lines the issue holds. */
-export const KEPT_LINES = 40;
+const KEPT_LINES = 40;
 
 /** The issue id in a merge commit's header, from the branch it names (`<id>-<slug>`), or "". */
-export function issueOf(mergeHeader: string): string {
+function issueOf(mergeHeader: string): string {
   return /['/]([a-z][a-z0-9-]*?-\d+)(?:-[^'/]*)?'/.exec(mergeHeader)?.[1] ?? "";
 }
 

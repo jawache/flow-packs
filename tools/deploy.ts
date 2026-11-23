@@ -23,9 +23,9 @@ const CWD = process.cwd();
 
 /** What the steps have printed so far, and the step that is running: what a failure's issue reports. */
 const printed: string[] = [];
-let current = "start";
+let current = "check origin";
 
-/** Run a shell line, showing its output, with no terminal input. Throws when it fails. */
+/** Run a shell line with no terminal input and show its output when it ends, not as it goes. Throws when it fails. */
 function step(name: string, line: string): void {
   current = name;
   tee(line, CWD, printed);
@@ -62,7 +62,6 @@ function deploy(): void {
   const before = lastTag();
 
   // A release tagged here and missing on origin is pushed whatever landed since.
-  current = "check origin";
   if (before !== "" && !onOrigin(before)) {
     process.stdout.write(`deploy: ${before} is not on origin, pushing it\n`);
     push(before);
@@ -78,7 +77,6 @@ function deploy(): void {
   step("install", process.env.DEPLOY_INSTALL ?? "just install");
   step("release-check", process.env.DEPLOY_CHECK ?? "just release-check");
   step("release", process.env.DEPLOY_RELEASE ?? "just release");
-  current = "release";
   const tag = lastTag();
   if (tag === "" || tag === before) throw new Error("the release made no new tag");
   push(tag);
@@ -87,7 +85,7 @@ function deploy(): void {
 /** File the failure as an issue in this repo's record. Never throws: a failure to file is printed, and the deploy still fails. */
 function fileFailure(error: Error): void {
   printed.push(error.message);
-  const { title, body } = failureIssue(git("log", "--merges", "-1", "--format=%s"), current, printed);
+  const { title, body } = failureIssue(git("log", "--first-parent", "--merges", "-1", "--format=%s", "--invert-grep", "--grep=^chore(release)"), current, printed);
   const filed = spawnSync(process.env.DEPLOY_WORK ?? "work", ["issue", "new", "--title", title, "--body", "-"], { cwd: CWD, encoding: "utf8", input: body });
   if (filed.status === 0) process.stderr.write(`deploy: filed ${filed.stdout.trim()}\n`);
   else process.stderr.write(`deploy: could not file the issue (${filed.error?.message ?? `work issue new exit ${String(filed.status)}`}): ${filed.stderr.trim()}\n`);
