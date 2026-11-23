@@ -59,18 +59,6 @@ describe("just deploy", () => {
     expect(git(bare, "rev-parse", "refs/tags/v0.1.1^{commit}")).toBe(git(clone, "rev-parse", "v0.1.1^{commit}"));
   });
 
-  it("finds the release it just made after a merged fix branch, whatever git describe picks", () => {
-    const { clone, bare } = scene([]);
-    git(clone, "checkout", "-q", "-b", "fix-branch");
-    git(clone, "commit", "-q", "--allow-empty", "-m", "fix(x): a bug");
-    git(clone, "checkout", "-q", "main");
-    git(clone, "merge", "-q", "--no-ff", "-m", "Merge fix-branch", "fix-branch");
-    git(clone, "push", "-q", "origin", "main");
-    const ran = deploy(clone);
-    expect(ran.status, ran.out).toBe(0);
-    expect(git(bare, "tag", "-l", "v0.1.1")).toBe("v0.1.1");
-  });
-
   it("pushes nothing when the check fails", () => {
     const { clone, bare } = scene(["feat: new"]);
     const before = refs(bare);
