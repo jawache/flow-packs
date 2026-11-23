@@ -27,7 +27,7 @@ const CWD = process.cwd();
 
 /** What the steps have printed so far, and the step that is running: what a failure's issue reports. */
 const printed: string[] = [];
-let current = "check origin";
+let current = "check branch";
 
 /** Run a shell line with no terminal input and show its output when it ends, not as it goes. Throws when it fails. */
 function step(name: string, line: string, args: readonly string[] = []): void {
@@ -52,11 +52,11 @@ function baseBranch(): string {
   return base;
 }
 
-/** Put the branch back at `head` and delete every release tag that was not there before. `--keep` refuses rather than lose uncommitted work. */
+/** Delete every release tag that was not there before, then put the branch back at `head`. `--keep` refuses rather than lose uncommitted work, so the tags go first and a refused reset leaves none half-made. */
 function undo(head: string, tagsBefore: string): void {
-  git("reset", "--keep", head);
   const had = new Set(tagsBefore.split("\n"));
   for (const tag of git("tag", "--list", "v*").split("\n")) if (tag !== "" && !had.has(tag)) git("tag", "-d", tag);
+  git("reset", "--keep", head);
 }
 
 /** Whether origin has the tag. Exit 2 of ls-remote is absent; any other failure, such as an origin that cannot be reached, throws. */
@@ -73,7 +73,6 @@ function push(tag: string): void {
 }
 
 function deploy(): void {
-  current = "check branch";
   const base = baseBranch();
   const branch = git("branch", "--show-current");
   if (branch !== base) throw new Error(`a deploy runs only on ${base}, and this is ${branch === "" ? "a detached HEAD" : branch}`);
@@ -104,7 +103,11 @@ function deploy(): void {
     tag = lastTag();
     if (tag === "" || tag === before) throw new Error("the release made no new tag");
   } catch (error) {
-    undo(head, tagsBefore);
+    try {
+      undo(head, tagsBefore);
+    } catch (undoError) {
+      printed.push((undoError as Error).message);
+    }
     throw error;
   }
   push(tag);

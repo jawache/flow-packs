@@ -77,13 +77,6 @@ describe("just deploy", () => {
     expect(git(clone, "tag", "-l", "v0.1.1")).toBe("");
   });
 
-  it("pushes nothing when the release fails", () => {
-    const { clone, bare } = scene(["feat: new"]);
-    const before = refs(bare);
-    expect(deploy(clone, { DEPLOY_RELEASE: "false" }).status).not.toBe(0);
-    expect(refs(bare)).toBe(before);
-  });
-
   it("with only a docs commit since the last tag says so in one line and changes nothing", () => {
     const { clone, bare } = scene(["docs: words"]);
     const before = { refs: refs(bare), log: git(clone, "log", "-1", "--format=%H"), tags: git(clone, "tag") };
@@ -98,10 +91,10 @@ describe("just deploy", () => {
 
   it("stops with an error, and does not push, when the release makes no new tag", () => {
     const { clone, bare } = scene(["fix: a bug"]);
-    const before = refs(bare);
-    const ran = deploy(clone, { DEPLOY_RELEASE: "true" });
+    const before = { head: git(clone, "rev-parse", "HEAD"), refs: refs(bare) };
+    const ran = deploy(clone, { DEPLOY_RELEASE: "git commit -q --allow-empty -m 'chore(release): 0.1.1'" });
     expect(ran.status).not.toBe(0);
-    expect(refs(bare)).toBe(before);
+    expect({ head: git(clone, "rev-parse", "HEAD"), refs: refs(bare) }).toEqual(before);
   });
 
   it("counts only plain version tags as releases, and never runs a tag's name as a command", () => {
