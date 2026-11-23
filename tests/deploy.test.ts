@@ -30,11 +30,20 @@ function scene(after: string[]): { clone: string; bare: string } {
   git(root, "init", "-q", "--bare", "-b", "main", bare);
   git(root, "init", "-q", "-b", "main", clone);
   git(clone, "remote", "add", "origin", bare);
-  git(clone, "commit", "-q", "--allow-empty", "-m", "chore: start");
+  writeFileSync(join(clone, "work.yml"), "base: main\n");
+  git(clone, "add", "work.yml");
+  git(clone, "commit", "-q", "-m", "chore: start");
   git(clone, "tag", "-a", "v0.1.0", "-m", "v0.1.0");
   for (const header of after) git(clone, "commit", "-q", "--allow-empty", "-m", header);
   git(clone, "push", "-q", "origin", "HEAD", "v0.1.0");
   return { clone, bare };
+}
+
+/** A stand-in for `work`: writes the title and the body it is given into a file, as the real one writes a draft. */
+function fakeWork(root: string): string {
+  const path = join(root, "work");
+  writeFileSync(path, '#!/bin/sh\nprintf "%s\\n" "$4" > "$(dirname "$0")/filed.md"; cat >> "$(dirname "$0")/filed.md"\n', { mode: 0o755 });
+  return path;
 }
 
 const refs = (bare: string): string => git(bare, "for-each-ref");
@@ -79,9 +88,11 @@ describe("just deploy", () => {
     const { clone, bare } = scene(["docs: words"]);
     const before = { refs: refs(bare), log: git(clone, "log", "-1", "--format=%H"), tags: git(clone, "tag") };
     // A step that would fail if it ran proves the decision comes first.
-    const ran = deploy(clone, { DEPLOY_INSTALL: "false" });
+    const stub = fakeWork(join(clone, ".."));
+    const ran = deploy(clone, { DEPLOY_INSTALL: "false", DEPLOY_WORK: stub });
     expect(ran.status).toBe(0);
     expect(ran.out.trim().split("\n")).toHaveLength(1);
+    expect(existsSync(join(clone, "..", "filed.md"))).toBe(false);
     expect({ refs: refs(bare), log: git(clone, "log", "-1", "--format=%H"), tags: git(clone, "tag") }).toEqual(before);
   });
 
@@ -91,6 +102,35 @@ describe("just deploy", () => {
     const ran = deploy(clone, { DEPLOY_RELEASE: "true" });
     expect(ran.status).not.toBe(0);
     expect(refs(bare)).toBe(before);
+  });
+
+  it("counts only plain version tags as releases, and never runs a tag's name as a command", () => {
+    const { clone, bare } = scene(["fix: a bug"]);
+    git(clone, "tag", "v9;touch${IFS}marker");
+    const ran = deploy(clone);
+    expect(ran.status, ran.out).toBe(0);
+    expect(existsSync(join(clone, "marker"))).toBe(false);
+    expect(git(bare, "tag", "-l", "v0.1.1")).toBe("v0.1.1");
+  });
+
+  it("undoes a release that fails partway: the head and the release tags are as they were", () => {
+    const { clone, bare } = scene(["feat: new"]);
+    const before = { head: git(clone, "rev-parse", "HEAD"), tags: git(clone, "tag", "-l", "v*"), refs: refs(bare) };
+    const ran = deploy(clone, { DEPLOY_RELEASE: "git commit -q --allow-empty -m 'chore(release): 0.1.1' && git tag -a v0.1.1 -m v0.1.1 && false" });
+    expect(ran.status).not.toBe(0);
+    expect({ head: git(clone, "rev-parse", "HEAD"), tags: git(clone, "tag", "-l", "v*"), refs: refs(bare) }).toEqual(before);
+  });
+
+  it("refuses to run on any branch but the base, and changes no ref on origin", () => {
+    const { clone, bare } = scene(["fix: a bug"]);
+    git(clone, "switch", "-q", "-c", "issue-branch");
+    const before = refs(bare);
+    const stub = fakeWork(join(clone, ".."));
+    const ran = deploy(clone, { DEPLOY_WORK: stub });
+    expect(ran.status).not.toBe(0);
+    expect(git(clone, "tag", "-l", "v0.1.1")).toBe("");
+    expect(refs(bare)).toBe(before);
+    expect(readFileSync(join(clone, "..", "filed.md"), "utf8")).toContain("a deploy runs only on main");
   });
 
   it("stops with an error when origin cannot be reached, never reading that as a missing tag", () => {
@@ -114,13 +154,6 @@ describe("just deploy", () => {
 });
 
 describe("a deploy that fails", () => {
-  /** A stand-in for `work`: writes the title and the body it is given into a file, as the real one writes a draft. */
-  function fakeWork(root: string): string {
-    const path = join(root, "work");
-    writeFileSync(path, '#!/bin/sh\nprintf "%s\\n" "$4" > "$(dirname "$0")/filed.md"; cat >> "$(dirname "$0")/filed.md"\n', { mode: 0o755 });
-    return path;
-  }
-
   it("files one issue whose title names the merged issue and whose body ends with the last lines printed", () => {
     const { clone } = scene(["fix: a bug"]);
     git(clone, "checkout", "-q", "-b", "side");
@@ -147,13 +180,6 @@ describe("a deploy that fails", () => {
     const filed = readFileSync(join(clone, "..", "filed.md"), "utf8");
     expect(filed.split("\n")[0]).toBe("The release after flow-packs-9 failed");
     expect(filed).toContain("the step `push`");
-  });
-
-  it("files nothing when there is nothing to release", () => {
-    const { clone } = scene(["docs: words"]);
-    const stub = fakeWork(join(clone, ".."));
-    expect(deploy(clone, { DEPLOY_WORK: stub }).status).toBe(0);
-    expect(existsSync(join(clone, "..", "filed.md"))).toBe(false);
   });
 
   it("still fails, and says why, when filing fails", () => {

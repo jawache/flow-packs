@@ -11,10 +11,14 @@
 // A step that fails, or any other failure, files one issue in this repo with `work issue new`, whose
 // title and body are made by release-failure.ts; a deploy with nothing to release files none. When
 // the filing itself fails, the deploy still exits non-zero and prints why.
-// The three steps can be stood in for by DEPLOY_INSTALL, DEPLOY_CHECK and DEPLOY_RELEASE (a shell
-// line each), which the tests use.
+// It runs only on the branch `base:` names in work.yml, and a release that fails partway is undone:
+// the branch goes back to where it was and a tag the release made is deleted.
+// The steps can be stood in for by DEPLOY_INSTALL, DEPLOY_CHECK and DEPLOY_RELEASE (a shell line
+// each) and `work` by DEPLOY_WORK (a program), which the tests use.
 
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { out, tee } from "./shell.ts";
 import { shouldRelease } from "./release-decision.ts";
 import { failureIssue } from "./release-failure.ts";
@@ -26,23 +30,33 @@ const printed: string[] = [];
 let current = "check origin";
 
 /** Run a shell line with no terminal input and show its output when it ends, not as it goes. Throws when it fails. */
-function step(name: string, line: string): void {
+function step(name: string, line: string, args: readonly string[] = []): void {
   current = name;
-  tee(line, CWD, printed);
+  tee(line, CWD, printed, args);
 }
 
-/** Run git and return what it printed, trimmed; "" when it fails. */
+/** Run git and return what it printed, trimmed. Throws when it fails. */
 function git(...args: string[]): string {
-  try {
-    return out("git", args, CWD);
-  } catch {
-    return "";
-  }
+  return out("git", args, CWD);
 }
 
-/** The highest `v*` version tag merged into HEAD, or "". Not `git describe`'s pick: a release tag is reachable only through the release merge's second parent, and describe can read a tag before it. */
+/** The highest plain version tag (`v1.2.3`) merged into HEAD, or "". Not `git describe`'s pick: a release tag is reachable only through the release merge's second parent, and describe can read a tag before it. */
 function lastTag(): string {
-  return git("tag", "--merged", "HEAD", "--list", "v*", "--sort=-v:refname").split("\n")[0] ?? "";
+  return git("tag", "--merged", "HEAD", "--list", "v*", "--sort=-v:refname").split("\n").find((tag) => /^v\d+\.\d+\.\d+$/.test(tag)) ?? "";
+}
+
+/** The `base:` of work.yml, the one branch a deploy runs on. */
+function baseBranch(): string {
+  const base = /^base:\s*(\S+)/m.exec(readFileSync(join(CWD, "work.yml"), "utf8"))?.[1];
+  if (base === undefined) throw new Error("work.yml has no base:");
+  return base;
+}
+
+/** Put the branch back at `head` and delete every release tag that was not there before. `--keep` refuses rather than lose uncommitted work. */
+function undo(head: string, tagsBefore: string): void {
+  git("reset", "--keep", head);
+  const had = new Set(tagsBefore.split("\n"));
+  for (const tag of git("tag", "--list", "v*").split("\n")) if (tag !== "" && !had.has(tag)) git("tag", "-d", tag);
 }
 
 /** Whether origin has the tag. Exit 2 of ls-remote is absent; any other failure, such as an origin that cannot be reached, throws. */
@@ -55,10 +69,16 @@ function onOrigin(tag: string): boolean {
 
 function push(tag: string): void {
   step("push", "git push origin HEAD");
-  step("push", `git push origin ${tag}`);
+  step("push", 'git push origin "$1"', [tag]);
 }
 
 function deploy(): void {
+  current = "check branch";
+  const base = baseBranch();
+  const branch = git("branch", "--show-current");
+  if (branch !== base) throw new Error(`a deploy runs only on ${base}, and this is ${branch === "" ? "a detached HEAD" : branch}`);
+
+  current = "check origin";
   const before = lastTag();
 
   // A release tagged here and missing on origin is pushed whatever landed since.
@@ -76,16 +96,31 @@ function deploy(): void {
 
   step("install", process.env.DEPLOY_INSTALL ?? "just install");
   step("release-check", process.env.DEPLOY_CHECK ?? "just release-check");
-  step("release", process.env.DEPLOY_RELEASE ?? "just release");
-  const tag = lastTag();
-  if (tag === "" || tag === before) throw new Error("the release made no new tag");
+  const head = git("rev-parse", "HEAD");
+  const tagsBefore = git("tag", "--list", "v*");
+  let tag: string;
+  try {
+    step("release", process.env.DEPLOY_RELEASE ?? "just release");
+    tag = lastTag();
+    if (tag === "" || tag === before) throw new Error("the release made no new tag");
+  } catch (error) {
+    undo(head, tagsBefore);
+    throw error;
+  }
   push(tag);
 }
 
 /** File the failure as an issue in this repo's record. Never throws: a failure to file is printed, and the deploy still fails. */
 function fileFailure(error: Error): void {
   printed.push(error.message);
-  const { title, body } = failureIssue(git("log", "--first-parent", "--merges", "-1", "--format=%s", "--invert-grep", "--grep=^chore(release)"), current, printed);
+  // Only here is a failed git read as "": a throw would hide the real error.
+  let header = "";
+  try {
+    header = git("log", "--first-parent", "--merges", "-1", "--format=%s", "--invert-grep", "--grep=^chore(release)");
+  } catch {
+    // The issue is filed without the merged issue's id.
+  }
+  const { title, body } = failureIssue(header, current, printed);
   const filed = spawnSync(process.env.DEPLOY_WORK ?? "work", ["issue", "new", "--title", title, "--body", "-"], { cwd: CWD, encoding: "utf8", input: body });
   if (filed.status === 0) process.stderr.write(`deploy: filed ${filed.stdout.trim()}\n`);
   else process.stderr.write(`deploy: could not file the issue (${filed.error?.message ?? `work issue new exit ${String(filed.status)}`}): ${filed.stderr.trim()}\n`);
