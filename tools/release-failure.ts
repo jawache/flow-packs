@@ -8,7 +8,7 @@ function issueOf(mergeHeader: string): string {
   return /['/]([a-z][a-z0-9-]*?-\d+)(?:-[^'/]*)?'/.exec(mergeHeader)?.[1] ?? "";
 }
 
-/** The title and body of the issue for a deploy whose `step` failed after `printed` lines, `mergeHeader` being the newest merge commit's. */
+/** The title and body of the issue for a deploy whose `step` failed after `printed` lines, `mergeHeader` being the header of the newest merge that is not a release's own. */
 export function failureIssue(mergeHeader: string, step: string, printed: readonly string[]): { title: string; body: string } {
   const id = issueOf(mergeHeader);
   const last = printed.slice(-KEPT_LINES).join("\n");

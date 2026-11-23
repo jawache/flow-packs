@@ -53,6 +53,6 @@ export default defineConfig([
 | `just build` | Builds `dist/<pack>.mjs` and `dist/types/` |
 | `just release-check` | Makes the release in a throwaway clone, installs it into a scratch project beside flow, and runs every pack's cases from the installed files |
 | `just release` | Makes the release commit, then a second commit that holds `dist/`, and tags it. Pushes nothing |
-| `just deploy` | Runs `just release-check`, then `just release`, then pushes the release commit and its tag. It releases only when a `feat`, a `fix` or a breaking change landed since the last tag |
+| `just deploy` | Runs `just install`, `just release-check`, then `just release`, then pushes the release commit and its tag. It releases only when a `feat`, a `fix` or a breaking change landed since the last tag |
 
 The version is computed from the Conventional Commit headers since the last tag. An issue that reaches Done runs `just deploy`. A deploy that fails files an issue in this repo, with the last lines it printed.
