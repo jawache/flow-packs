@@ -12,25 +12,36 @@
 // line each), which the tests use.
 
 import { spawnSync } from "node:child_process";
+import { out, run } from "./shell.ts";
 import { shouldRelease } from "./release-decision.ts";
 
 const CWD = process.cwd();
 
 /** Run a shell line, showing its output, with no terminal input. Throws when it fails. */
 function step(line: string): void {
-  const ran = spawnSync("sh", ["-c", line], { cwd: CWD, stdio: ["ignore", "inherit", "inherit"] });
-  if (ran.status !== 0) throw new Error(`${line} failed (exit ${String(ran.status)})`);
+  run("sh", ["-c", line], CWD, "ignore");
 }
 
 /** Run git and return what it printed, trimmed; "" when it fails. */
 function git(...args: string[]): string {
-  const ran = spawnSync("git", args, { cwd: CWD, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
-  return ran.status === 0 ? ran.stdout.trim() : "";
+  try {
+    return out("git", args, CWD);
+  } catch {
+    return "";
+  }
 }
 
 /** The newest `v*` tag reachable from HEAD, or "". */
 function lastTag(): string {
   return git("describe", "--tags", "--abbrev=0", "--match", "v*");
+}
+
+/** Whether origin has the tag. Exit 2 of ls-remote is absent; any other failure, such as an origin that cannot be reached, throws. */
+function onOrigin(tag: string): boolean {
+  const ran = spawnSync("git", ["ls-remote", "--exit-code", "--tags", "origin", `refs/tags/${tag}`], { cwd: CWD, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  if (ran.status === 0) return true;
+  if (ran.status === 2) return false;
+  throw new Error(`cannot tell whether ${tag} is on origin (git ls-remote exit ${String(ran.status)}): ${ran.stderr.trim()}`);
 }
 
 function push(tag: string): void {
@@ -42,7 +53,7 @@ function deploy(): void {
   const before = lastTag();
 
   // A release tagged here and missing on origin is pushed whatever landed since.
-  if (before !== "" && git("ls-remote", "--tags", "origin", `refs/tags/${before}`) === "") {
+  if (before !== "" && !onOrigin(before)) {
     process.stdout.write(`deploy: ${before} is not on origin, pushing it\n`);
     push(before);
     return;

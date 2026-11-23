@@ -39,9 +39,9 @@ function deploy(clone: string, env: Record<string, string> = {}): { status: numb
   const ran = spawnSync("node", [join(PACKAGE, "tools", "deploy.ts")], {
     cwd: clone,
     encoding: "utf8",
-    stdin: "ignore",
+    stdio: ["ignore", "pipe", "pipe"],
     env: { ...process.env, DEPLOY_INSTALL: "true", DEPLOY_CHECK: "true", DEPLOY_RELEASE: RELEASE, ...env },
-  } as Parameters<typeof spawnSync>[2] & { stdin: string });
+  });
   return { status: ran.status, out: `${ran.stdout}${ran.stderr}` };
 }
 
@@ -79,6 +79,22 @@ describe("just deploy", () => {
     expect(ran.status).toBe(0);
     expect(ran.out.trim().split("\n")).toHaveLength(1);
     expect({ refs: refs(bare), log: git(clone, "log", "-1", "--format=%H"), tags: git(clone, "tag") }).toEqual(before);
+  });
+
+  it("stops with an error, and does not push, when the release makes no new tag", () => {
+    const { clone, bare } = scene(["fix: a bug"]);
+    const before = refs(bare);
+    const ran = deploy(clone, { DEPLOY_RELEASE: "true" });
+    expect(ran.status).not.toBe(0);
+    expect(refs(bare)).toBe(before);
+  });
+
+  it("stops with an error when origin cannot be reached, never reading that as a missing tag", () => {
+    const { clone } = scene(["fix: a bug"]);
+    git(clone, "remote", "set-url", "origin", join(clone, "no-such-repo.git"));
+    const ran = deploy(clone);
+    expect(ran.status).not.toBe(0);
+    expect(ran.out).not.toContain("pushing it");
   });
 
   it("pushes a release that is tagged here and not on origin, whatever landed since", () => {

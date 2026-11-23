@@ -17,21 +17,9 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { out, run } from "./shell.ts";
 
 const PACKAGE = resolve(import.meta.dirname, "..");
-
-/** Run a program in `cwd`, showing its output, and stop the release when it fails. */
-function run(program: string, args: readonly string[], cwd: string): void {
-  const ran = spawnSync(program, args, { cwd, stdio: "inherit" });
-  if (ran.status !== 0) throw new Error(`${program} ${args.join(" ")} failed (exit ${String(ran.status)}) in ${cwd}`);
-}
-
-/** Run a program in `cwd` and return what it printed, trimmed. */
-function out(program: string, args: readonly string[], cwd: string): string {
-  const ran = spawnSync(program, args, { cwd, encoding: "utf8" });
-  if (ran.status !== 0) throw new Error(`${program} ${args.join(" ")} failed (exit ${String(ran.status)}): ${ran.stderr}`);
-  return ran.stdout.trim();
-}
 
 /** What a tag ships of dist/: every bundle and the types. */
 function built(repo: string): string[] {
