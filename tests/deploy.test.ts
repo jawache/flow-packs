@@ -11,12 +11,15 @@ const PACKAGE = resolve(import.meta.dirname, "..");
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
+// One committer second for every commit, so no ordering by date can tell the commits apart.
+const DATE = "2026-01-01T00:00:00Z";
+
 function git(cwd: string, ...args: string[]): string {
-  return execFileSync("git", args, { cwd, encoding: "utf8", env: { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" } }).trim();
+  return execFileSync("git", args, { cwd, encoding: "utf8", env: { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t", GIT_COMMITTER_DATE: DATE } }).trim();
 }
 
-// As release.ts does: the release commit, its tag, then the tag merged back with `-s ours`.
-const RELEASE = "git commit -q --allow-empty -m 'chore(release): 0.1.1' && git tag -a v0.1.1 -m v0.1.1 && git merge -q -s ours --no-ff -m 'chore(release): v0.1.1 is reachable from the branch' v0.1.1";
+// As release.ts does: the release commit on the branch, a commit above it, detached, that the tag points at, then the tag merged back with `-s ours`.
+const RELEASE = "git commit -q --allow-empty -m 'chore(release): 0.1.1' && git switch -q --detach && git commit -q --allow-empty -m 'chore(release): v0.1.1 holds the built files' && git tag -a v0.1.1 -m v0.1.1 && git switch -q main && git merge -q -s ours --no-ff -m 'chore(release): v0.1.1 is reachable from the branch' v0.1.1";
 
 /** A clone at tag v0.1.0 whose origin is a bare repo that holds it, then `after` commit headers. */
 function scene(after: string[]): { clone: string; bare: string } {
@@ -41,7 +44,7 @@ function deploy(clone: string, env: Record<string, string> = {}): { status: numb
     cwd: clone,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, DEPLOY_INSTALL: "true", DEPLOY_CHECK: "true", DEPLOY_RELEASE: RELEASE, DEPLOY_WORK: "true", ...env },
+    env: { ...process.env, DEPLOY_INSTALL: "true", DEPLOY_CHECK: "true", DEPLOY_RELEASE: RELEASE, DEPLOY_WORK: "true", GIT_COMMITTER_DATE: DATE, ...env },
   });
   return { status: ran.status, out: `${ran.stdout}${ran.stderr}` };
 }
@@ -54,6 +57,18 @@ describe("just deploy", () => {
     const head = git(clone, "rev-parse", "HEAD");
     expect(git(bare, "rev-parse", "refs/heads/main")).toBe(head);
     expect(git(bare, "rev-parse", "refs/tags/v0.1.1^{commit}")).toBe(git(clone, "rev-parse", "v0.1.1^{commit}"));
+  });
+
+  it("finds the release it just made after a merged fix branch, whatever git describe picks", () => {
+    const { clone, bare } = scene([]);
+    git(clone, "checkout", "-q", "-b", "fix-branch");
+    git(clone, "commit", "-q", "--allow-empty", "-m", "fix(x): a bug");
+    git(clone, "checkout", "-q", "main");
+    git(clone, "merge", "-q", "--no-ff", "-m", "Merge fix-branch", "fix-branch");
+    git(clone, "push", "-q", "origin", "main");
+    const ran = deploy(clone);
+    expect(ran.status, ran.out).toBe(0);
+    expect(git(bare, "tag", "-l", "v0.1.1")).toBe("v0.1.1");
   });
 
   it("pushes nothing when the check fails", () => {

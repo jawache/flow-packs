@@ -40,9 +40,9 @@ function git(...args: string[]): string {
   }
 }
 
-/** The newest `v*` tag reachable from HEAD, or "". */
+/** The highest `v*` version tag merged into HEAD, or "". Not `git describe`'s pick: a release tag is reachable only through the release merge's second parent, and describe can read a tag before it. */
 function lastTag(): string {
-  return git("describe", "--tags", "--abbrev=0", "--match", "v*");
+  return git("tag", "--merged", "HEAD", "--list", "v*", "--sort=-v:refname").split("\n")[0] ?? "";
 }
 
 /** Whether origin has the tag. Exit 2 of ls-remote is absent; any other failure, such as an origin that cannot be reached, throws. */
