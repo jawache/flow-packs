@@ -8,18 +8,27 @@
 // push that failed, is pushed by the next deploy, whatever landed since.
 //
 // It never prompts: every step runs with standard input from /dev/null, as the daemon runs it.
+// A step that fails, or any other failure, files one issue in this repo with `work issue new`, whose
+// title and body are made by release-failure.ts; a deploy with nothing to release files none. When
+// the filing itself fails, the deploy still exits non-zero and prints why.
 // The three steps can be stood in for by DEPLOY_INSTALL, DEPLOY_CHECK and DEPLOY_RELEASE (a shell
 // line each), which the tests use.
 
 import { spawnSync } from "node:child_process";
-import { out, run } from "./shell.ts";
+import { out, tee } from "./shell.ts";
 import { shouldRelease } from "./release-decision.ts";
+import { failureIssue } from "./release-failure.ts";
 
 const CWD = process.cwd();
 
+/** What the steps have printed so far, and the step that is running: what a failure's issue reports. */
+const printed: string[] = [];
+let current = "start";
+
 /** Run a shell line, showing its output, with no terminal input. Throws when it fails. */
-function step(line: string): void {
-  run("sh", ["-c", line], CWD, "ignore");
+function step(name: string, line: string): void {
+  current = name;
+  tee(line, CWD, printed);
 }
 
 /** Run git and return what it printed, trimmed; "" when it fails. */
@@ -45,14 +54,15 @@ function onOrigin(tag: string): boolean {
 }
 
 function push(tag: string): void {
-  step("git push origin HEAD");
-  step(`git push origin ${tag}`);
+  step("push", "git push origin HEAD");
+  step("push", `git push origin ${tag}`);
 }
 
 function deploy(): void {
   const before = lastTag();
 
   // A release tagged here and missing on origin is pushed whatever landed since.
+  current = "check origin";
   if (before !== "" && !onOrigin(before)) {
     process.stdout.write(`deploy: ${before} is not on origin, pushing it\n`);
     push(before);
@@ -65,17 +75,28 @@ function deploy(): void {
     return;
   }
 
-  step(process.env.DEPLOY_INSTALL ?? "just install");
-  step(process.env.DEPLOY_CHECK ?? "just release-check");
-  step(process.env.DEPLOY_RELEASE ?? "just release");
+  step("install", process.env.DEPLOY_INSTALL ?? "just install");
+  step("release-check", process.env.DEPLOY_CHECK ?? "just release-check");
+  step("release", process.env.DEPLOY_RELEASE ?? "just release");
+  current = "release";
   const tag = lastTag();
   if (tag === "" || tag === before) throw new Error("the release made no new tag");
   push(tag);
+}
+
+/** File the failure as an issue in this repo's record. Never throws: a failure to file is printed, and the deploy still fails. */
+function fileFailure(error: Error): void {
+  printed.push(error.message);
+  const { title, body } = failureIssue(git("log", "--merges", "-1", "--format=%s"), current, printed);
+  const filed = spawnSync(process.env.DEPLOY_WORK ?? "work", ["issue", "new", "--title", title, "--body", "-"], { cwd: CWD, encoding: "utf8", input: body });
+  if (filed.status === 0) process.stderr.write(`deploy: filed ${filed.stdout.trim()}\n`);
+  else process.stderr.write(`deploy: could not file the issue (${filed.error?.message ?? `work issue new exit ${String(filed.status)}`}): ${filed.stderr.trim()}\n`);
 }
 
 try {
   deploy();
 } catch (error) {
   process.stderr.write(`deploy: ${(error as Error).message}\n`);
+  fileFailure(error as Error);
   process.exitCode = 1;
 }

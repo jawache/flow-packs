@@ -61,7 +61,7 @@ fields:                                              # every other key in each i
       - { name: Demo,    icon: "🎬", action: "[work] /work demo {issue}: write the recap of the build first", stop: true }
       - { name: Review,  icon: "👀", action: ["/compact", "[work] /work review {issue}"], stop: true }
       - { name: Merge,   icon: "🔀", action: "[work] /work merge {issue}", stop: true }
-      - { name: Done,    icon: "✅", done: true }
+      - { name: Done,    icon: "✅", action: "!git pull --ff-only origin {base} && just deploy", done: true }
   story: { type: text, card: true }                  # a word on an issue, to group it with others; card shows it on the board
   priority:
     card: true

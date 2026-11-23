@@ -14,3 +14,11 @@ export function out(program: string, args: readonly string[], cwd: string): stri
   if (ran.status !== 0) throw new Error(`${program} ${args.join(" ")} failed (exit ${String(ran.status)}): ${ran.stderr}`);
   return ran.stdout.trim();
 }
+
+/** Run a shell line with no terminal input, its output and errors interleaved: show it, and add its lines to `sink` even when it fails. Throws when it fails. */
+export function tee(line: string, cwd: string, sink: string[]): void {
+  const ran = spawnSync("sh", ["-c", `exec 2>&1; ${line}`], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], maxBuffer: 256 * 1024 * 1024 });
+  process.stdout.write(ran.stdout);
+  sink.push(...ran.stdout.replace(/\n$/, "").split("\n"));
+  if (ran.status !== 0) throw new Error(`${line} failed (exit ${String(ran.status)}) in ${cwd}`);
+}

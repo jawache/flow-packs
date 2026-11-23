@@ -2,7 +2,7 @@
 // the check are stood in for (DEPLOY_*), so this runs in seconds; the real cut is held by the last test.
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readdirSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -106,6 +106,43 @@ describe("just deploy", () => {
     expect(ran.status, ran.out).toBe(0);
     expect(git(bare, "tag", "-l", "v0.1.1")).toBe("v0.1.1");
     expect(git(bare, "rev-parse", "refs/heads/main")).toBe(git(clone, "rev-parse", "HEAD"));
+  });
+});
+
+describe("a deploy that fails", () => {
+  /** A stand-in for `work`: writes the title and the body it is given into a file, as the real one writes a draft. */
+  function fakeWork(root: string): string {
+    const path = join(root, "work");
+    writeFileSync(path, '#!/bin/sh\nprintf "%s\\n" "$4" > "$(dirname "$0")/filed.md"; cat >> "$(dirname "$0")/filed.md"\n', { mode: 0o755 });
+    return path;
+  }
+
+  it("files one issue whose title names the merged issue and whose body ends with the last lines printed", () => {
+    const { clone } = scene(["fix: a bug"]);
+    git(clone, "checkout", "-q", "-b", "side");
+    git(clone, "commit", "-q", "--allow-empty", "-m", "side work");
+    git(clone, "checkout", "-q", "main");
+    git(clone, "merge", "-q", "--no-ff", "-m", "Merge remote-tracking branch 'origin/flow-packs-9-x'", "side");
+    const stub = fakeWork(join(clone, ".."));
+    const ran = deploy(clone, { DEPLOY_WORK: stub, DEPLOY_CHECK: "echo one; echo two >&2; exit 3" });
+    expect(ran.status).not.toBe(0);
+    const filed = readFileSync(join(clone, "..", "filed.md"), "utf8");
+    expect(filed.split("\n")[0]).toBe("The release after flow-packs-9 failed");
+    expect(filed).toMatch(/one\ntwo\n[^\n]*failed \(exit 3\)[^\n]*\n```\n$/);
+  });
+
+  it("files nothing when there is nothing to release", () => {
+    const { clone } = scene(["docs: words"]);
+    const stub = fakeWork(join(clone, ".."));
+    expect(deploy(clone, { DEPLOY_WORK: stub }).status).toBe(0);
+    expect(existsSync(join(clone, "..", "filed.md"))).toBe(false);
+  });
+
+  it("still fails, and says why, when filing fails", () => {
+    const { clone } = scene(["fix: a bug"]);
+    const ran = deploy(clone, { DEPLOY_WORK: "false", DEPLOY_CHECK: "false" });
+    expect(ran.status).not.toBe(0);
+    expect(ran.out).toContain("could not file the issue");
   });
 });
 
