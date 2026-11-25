@@ -12,7 +12,7 @@
 // `$( )`, a `bash -c` string, an `eval` and a `sudo` are stepped into, and a heredoc body or a
 // quoted argument is text, never a command. Needs @jawache/flow 0.4.0 or later.
 
-import { breadcrumb, type Check, command, definePack, guardrail, programName, session, shellCommands } from "@jawache/flow";
+import { breadcrumb, type Check, command, defineCategory, definePack, guardrail, programName, session, shellCommands, turnEnd } from "@jawache/flow";
 
 // ── what no session may run ──
 
@@ -37,6 +37,104 @@ const playwrightAll: Check = (ctx) => {
   );
   return found === undefined ? ctx.ok() : ctx.fail(found.text);
 };
+
+// ── a line from the web with no card ──
+
+/** One row of an issue's `log.jsonl`, as far as the rule reads it. */
+export interface LogRow {
+  readonly at: string;
+  readonly kind: string;
+  readonly by?: string;
+  readonly body?: string;
+}
+
+/** This rule's id in flow's own log. */
+const WEB_LINE_RULE = "work.webLineGetsACard";
+
+/** The detail a hold records, so a later turn can tell which issue it was made for. */
+const holdDetail = (issue: string): string => `issue ${issue}`;
+
+/** The issue's id in `WORK_SESSION`, which holds `<owner>/<repo>#<issue>`; `null` when there is none. */
+export function issueOf(session: string): string | null {
+  const id = session.trim().split("#")[1];
+  return id === undefined || id === "" ? null : id;
+}
+
+/** The newest row of the log that is a line from the web: an `answer` with `by: line`, or a `note`. */
+const lastWebLine = (rows: readonly LogRow[]): number => rows.findLastIndex((row) => row.kind === "note" || (row.kind === "answer" && row.by === "line"));
+
+/** A row that settles a web line: a question raised, an answer from anywhere else, or a move of the issue. */
+const settles = (row: LogRow): boolean =>
+  row.kind === "question" || row.kind === "answer" || (row.kind === "event" && /^Moved to /.test(row.body ?? ""));
+
+/**
+ * Whether a turn that ends now is held. Pure: the issue's log rows, oldest first, and the times of
+ * this rule's earlier holds for this issue. Held when the newest line from the web has no question,
+ * answer or move after it and no hold of this rule at or after it. Times are compared as times,
+ * because the daemon stamps whole seconds and flow stamps milliseconds.
+ */
+export function turnIsHeld(rows: readonly LogRow[], holds: readonly string[]): boolean {
+  const web = lastWebLine(rows);
+  if (web < 0) return false;
+  if (rows.slice(web + 1).some(settles)) return false;
+  const since = Date.parse(rows[web]?.at ?? "");
+  return !holds.some((hold) => Date.parse(hold) >= since);
+}
+
+/** The times of this rule's holds for one issue, from the lines of flow's own log. */
+export function holdTimes(flowLogLines: string, issue: string): string[] {
+  return flowLogLines
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .flatMap((line) => {
+      try {
+        const row = JSON.parse(line) as { ts?: string; id?: string; kind?: string; detail?: string };
+        return row.kind === "guardrail" && row.id === WEB_LINE_RULE && row.detail === holdDetail(issue) && row.ts !== undefined ? [row.ts] : [];
+      } catch {
+        return [];
+      }
+    });
+}
+
+/** The main session: an agent that is not a subagent. */
+const main = defineCategory("main", (facts) => !facts.subagent);
+
+const parseRows = (text: string): LogRow[] =>
+  text
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .map((line) => JSON.parse(line) as LogRow);
+
+/**
+ * Reads `WORK_SESSION`, the issue's `.work/<id>/log.jsonl`, and flow's own log for this rule's earlier
+ * holds. A session with no `WORK_SESSION`, or an issue with no log, is handed back.
+ */
+const webLineWithoutCard: Check = async (ctx) => {
+  if (!ctx.actor.includes("main")) return ctx.ok(); // `.for(main)` binds the entry live; a case runs the check alone
+  const issue = issueOf((await ctx.exec("printenv WORK_SESSION")).stdout);
+  if (issue === null) return ctx.ok();
+  const path = `.work/${issue}/log.jsonl`;
+  if (!(await ctx.fs.exists(path))) return ctx.ok();
+  const rows = parseRows(await ctx.fs.read(path));
+  if (!turnIsHeld(rows, [])) return ctx.ok(); // nothing to hold for: skip the read of flow's log
+  const flowLog = (await ctx.exec(`grep -h '"id":"${WEB_LINE_RULE}"' .flow/log/*.jsonl`)).stdout;
+  return turnIsHeld(rows, holdTimes(flowLog, issue)) ? ctx.fail(holdDetail(issue)) : ctx.ok();
+};
+
+
+/** The canned world of a case: the session's issue is `t-1`, its log holds these rows, flow's log these lines. */
+function world(rows: string[], flowLog: string[] = []) {
+  return {
+    exec: {
+      "printenv WORK_SESSION": { stdout: "o/r#t-1\n" },
+      [`grep -h '"id":"${WEB_LINE_RULE}"' .flow/log/*.jsonl`]: { stdout: flowLog.join("\n") },
+    },
+    fs: { ".work/t-1/log.jsonl": rows.join("\n") + "\n" },
+  };
+}
+
+/** A line of flow's log: this rule held a turn for an issue at a time. */
+const hold = (ts: string, issue: string): string => JSON.stringify({ ts, kind: "guardrail", id: WEB_LINE_RULE, detail: holdDetail(issue) });
 
 /**
  * A repo driven by work: the daemon types `[work]` lines into one session of the repo's coding agent, Claude Code or Codex, per issue,
@@ -95,5 +193,45 @@ export const work = definePack("work", {
         "git commit -m 'docs: the guard refuses close-all and kill-all'",
         "work log fyi --on 1 <<'WORKLOG'\nThe rule refuses close-all and kill-all.\nWORKLOG",
       ].map((command) => ({ command })),
+    }),
+
+  /**
+   * Without it, a session that your line from the web reached ends its turn with a word in the
+   * terminal, where you are not reading: you sent the line from the web, so the web is where you
+   * are. Held once for each line, so a session with nothing for you to read or decide hands back
+   * again and is let through.
+   */
+  webLineGetsACard: guardrail()
+    .at(turnEnd)
+    .for(main)
+    .check(webLineWithoutCard)
+    .message(
+      "Your turn is ending after a line from the web with no card raised. The human's last line came from the web, so they are reading the web and not this terminal. What they need to read or decide is a new work log question. With nothing for them to read or decide, hand back again.",
+    )
+    .description("A main session's turn is held once when the human's last line to it came from the web and it has raised no question and the issue has not moved since.")
+    .test({
+      block: [
+        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}']) },
+        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"note"}']) },
+        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}', '{"at":"2026-11-25T16:01:00Z","kind":"fyi"}']) },
+        // a hold for another issue, or one made before the line, does not count
+        {
+          actions: [],
+          actor: ["main"],
+          world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}'], [hold("2026-11-25T16:05:00.000Z", "other-1"), hold("2026-11-25T15:00:00.000Z", "t-1")]),
+        },
+      ],
+      pass: [
+        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}', '{"at":"2026-11-25T16:01:00Z","kind":"question"}']) },
+        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}', '{"at":"2026-11-25T16:01:00Z","kind":"event","body":"Moved to Docs."}']) },
+        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}'], [hold("2026-11-25T16:00:00.940Z", "t-1")]) },
+        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"question"}']) },
+        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}', '{"at":"2026-11-25T16:01:00Z","kind":"answer","by":"terminal"}']) },
+        // a subagent's hand-back is never held
+        { actions: [], actor: ["subagent"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}']) },
+        // no WORK_SESSION, and an issue with no log
+        { actions: [], actor: ["main"], world: { exec: { "printenv WORK_SESSION": { stdout: "" } } } },
+        { actions: [], actor: ["main"], world: { exec: { "printenv WORK_SESSION": { stdout: "o/r#t-1\n" } } } },
+      ],
     }),
 });
