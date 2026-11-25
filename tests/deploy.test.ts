@@ -39,14 +39,7 @@ function scene(after: string[]): { clone: string; bare: string } {
   return { clone, bare };
 }
 
-/** A stand-in for `work`: writes the title and the body it is given into a file, as the real one writes a draft. */
-function fakeWork(root: string): string {
-  const path = join(root, "work");
-  writeFileSync(path, '#!/bin/sh\nprintf "%s\\n" "$4" > "$(dirname "$0")/filed.md"; cat >> "$(dirname "$0")/filed.md"\n', { mode: 0o755 });
-  return path;
-}
-
-/** A stand-in for `work` that records each call's arguments, one line a call, in `calls` beside it, files an issue as `fakeWork` does, and exits 1 on `event` when `failEvent`. `atCall` is a shell line it runs first. */
+/** A stand-in for `work` that records each call's arguments, one line a call, in `calls` beside it, files an issue as the real one writes a draft: its title and body into `filed.md`, and exits 1 on `event` when `failEvent`. `atCall` is a shell line it runs first. */
 function recordingWork(root: string, failEvent = false, atCall = ":"): { path: string; calls: () => string[] } {
   const path = join(root, "work");
   writeFileSync(path, `#!/bin/sh\ndir=$(dirname "$0")\n${atCall}\nprintf '%s\\n' "$*" >> "$dir/calls"\nif [ "$1" = event ]; then ${failEvent ? "echo no daemon >&2; exit 1" : "exit 0"}; fi\nprintf "%s\\n" "$4" > "$dir/filed.md"; cat >> "$dir/filed.md"\n`, { mode: 0o755 });
@@ -69,8 +62,12 @@ function deploy(clone: string, env: Record<string, string> = {}): { status: numb
 describe("just deploy", () => {
   it("leaves the bare repo with the branch's head and the new tag after a fix", () => {
     const { clone, bare } = scene(["fix(x): a bug"]);
-    const ran = deploy(clone);
+    // The stand-in reads the bare repo as the event arrives: the tag must already be there.
+    const work = recordingWork(join(clone, ".."), false, `git -C '${bare}' tag -l v0.1.1 | tr -d '\\n' > "$dir/tag-at-event"`);
+    const ran = deploy(clone, { DEPLOY_WORK: work.path });
     expect(ran.status, ran.out).toBe(0);
+    expect(work.calls()).toEqual(["event release.cut --package jawache/flow-packs --version v0.1.1"]);
+    expect(readFileSync(join(clone, "..", "tag-at-event"), "utf8")).toBe("v0.1.1");
     const head = git(clone, "rev-parse", "HEAD");
     expect(git(bare, "rev-parse", "refs/heads/main")).toBe(head);
     expect(git(bare, "rev-parse", "refs/tags/v0.1.1^{commit}")).toBe(git(clone, "rev-parse", "v0.1.1^{commit}"));
@@ -89,11 +86,11 @@ describe("just deploy", () => {
     const { clone, bare } = scene(["docs: words"]);
     const before = { refs: refs(bare), log: git(clone, "log", "-1", "--format=%H"), tags: git(clone, "tag") };
     // A step that would fail if it ran proves the decision comes first.
-    const stub = fakeWork(join(clone, ".."));
-    const ran = deploy(clone, { DEPLOY_INSTALL: "false", DEPLOY_WORK: stub });
+    const work = recordingWork(join(clone, ".."));
+    const ran = deploy(clone, { DEPLOY_INSTALL: "false", DEPLOY_WORK: work.path });
     expect(ran.status).toBe(0);
     expect(ran.out.trim().split("\n")).toHaveLength(1);
-    expect(existsSync(join(clone, "..", "filed.md"))).toBe(false);
+    expect(work.calls()).toEqual([]);
     expect({ refs: refs(bare), log: git(clone, "log", "-1", "--format=%H"), tags: git(clone, "tag") }).toEqual(before);
   });
 
@@ -126,7 +123,7 @@ describe("just deploy", () => {
     const { clone, bare } = scene(["fix: a bug"]);
     git(clone, "switch", "-q", "-c", "issue-branch");
     const before = refs(bare);
-    const stub = fakeWork(join(clone, ".."));
+    const stub = recordingWork(join(clone, "..")).path;
     const ran = deploy(clone, { DEPLOY_WORK: stub });
     expect(ran.status).not.toBe(0);
     expect(git(clone, "tag", "-l", "v0.1.1")).toBe("");
@@ -147,42 +144,16 @@ describe("just deploy", () => {
     git(clone, "commit", "-q", "--allow-empty", "-m", "chore(release): 0.1.1");
     git(clone, "tag", "-a", "v0.1.1", "-m", "v0.1.1");
     git(clone, "commit", "-q", "--allow-empty", "-m", "docs: after");
-    const ran = deploy(clone, { DEPLOY_CHECK: "false", DEPLOY_RELEASE: "false" });
+    const work = recordingWork(join(clone, ".."));
+    const ran = deploy(clone, { DEPLOY_CHECK: "false", DEPLOY_RELEASE: "false", DEPLOY_WORK: work.path });
     expect(ran.status, ran.out).toBe(0);
+    expect(work.calls()).toEqual(["event release.cut --package jawache/flow-packs --version v0.1.1"]);
     expect(git(bare, "tag", "-l", "v0.1.1")).toBe("v0.1.1");
     expect(git(bare, "rev-parse", "refs/heads/main")).toBe(git(clone, "rev-parse", "HEAD"));
   });
 });
 
 describe("the release event", () => {
-  it("is emitted once, after the remote has the tag, with the tag it pushed", () => {
-    const { clone, bare } = scene(["fix(x): a bug"]);
-    // The stand-in reads the bare repo as the event arrives: the tag must already be there.
-    const work = recordingWork(join(clone, ".."), false, `git -C '${bare}' tag -l v0.1.1 | tr -d '\\n' > "$dir/tag-at-event"`);
-    const ran = deploy(clone, { DEPLOY_WORK: work.path });
-    expect(ran.status, ran.out).toBe(0);
-    expect(work.calls()).toEqual(["event release.cut --package jawache/flow-packs --version v0.1.1"]);
-    expect(readFileSync(join(clone, "..", "tag-at-event"), "utf8")).toBe("v0.1.1");
-  });
-
-  it("is not emitted by a deploy that releases nothing", () => {
-    const { clone } = scene(["docs: words"]);
-    const work = recordingWork(join(clone, ".."));
-    const ran = deploy(clone, { DEPLOY_WORK: work.path });
-    expect(ran.status, ran.out).toBe(0);
-    expect(work.calls()).toEqual([]);
-  });
-
-  it("is emitted for a tag an earlier deploy left unpushed, and for that tag alone", () => {
-    const { clone } = scene(["fix: a bug"]);
-    git(clone, "commit", "-q", "--allow-empty", "-m", "chore(release): 0.1.1");
-    git(clone, "tag", "-a", "v0.1.1", "-m", "v0.1.1");
-    const work = recordingWork(join(clone, ".."));
-    const ran = deploy(clone, { DEPLOY_WORK: work.path });
-    expect(ran.status, ran.out).toBe(0);
-    expect(work.calls()).toEqual(["event release.cut --package jawache/flow-packs --version v0.1.1"]);
-  });
-
   it("fails the deploy and files an issue when it fails, with the release left pushed", () => {
     const { clone, bare } = scene(["fix: a bug"]);
     const work = recordingWork(join(clone, ".."), true);
@@ -202,7 +173,7 @@ describe("a deploy that fails", () => {
     git(clone, "commit", "-q", "--allow-empty", "-m", "side work");
     git(clone, "checkout", "-q", "main");
     git(clone, "merge", "-q", "--no-ff", "-m", "Merge remote-tracking branch 'origin/flow-packs-9-x'", "side");
-    const stub = fakeWork(join(clone, ".."));
+    const stub = recordingWork(join(clone, "..")).path;
     const ran = deploy(clone, { DEPLOY_WORK: stub, DEPLOY_CHECK: "echo one; echo two >&2; exit 3" });
     expect(ran.status).not.toBe(0);
     const filed = readFileSync(join(clone, "..", "filed.md"), "utf8");
@@ -216,7 +187,7 @@ describe("a deploy that fails", () => {
     git(clone, "commit", "-q", "--allow-empty", "-m", "side work");
     git(clone, "checkout", "-q", "main");
     git(clone, "merge", "-q", "--no-ff", "-m", "Merge remote-tracking branch 'origin/flow-packs-9-x'", "side");
-    const stub = fakeWork(join(clone, ".."));
+    const stub = recordingWork(join(clone, "..")).path;
     const ran = deploy(clone, { DEPLOY_WORK: stub, DEPLOY_RELEASE: `${RELEASE} && git remote set-url origin ${join(clone, "no-such-repo.git")}` });
     expect(ran.status).not.toBe(0);
     const filed = readFileSync(join(clone, "..", "filed.md"), "utf8");

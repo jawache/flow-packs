@@ -4,11 +4,10 @@
 // line and stops, before anything runs. Otherwise it installs from the lockfile, runs
 // `just release-check`, then `just release`, then pushes the branch and the new tag, then emits
 // `work event release.cut --package jawache/flow-packs --version <tag>`, so each project's updater
-// takes the release. A failed step
-// stops it with a non-zero exit before any later step, so nothing reaches the remote unless the
-// check and the release both passed. A release that is tagged here and not on origin, as after a
-// push that failed, is pushed, and its event emitted, by the next deploy, whatever landed since.
-// A failed event fails the deploy and files its issue, with the release left pushed.
+// takes the release. A failed step stops it with a non-zero exit before any later step, so nothing
+// reaches the remote unless the check and the release both passed. A release that is tagged here
+// and not on origin, as after a push that failed, is pushed, and its event emitted, by the next
+// deploy, whatever landed since. A failed event fails the deploy and files its issue, with the release left pushed.
 //
 // It never prompts: every step runs with standard input from /dev/null, as the daemon runs it.
 // A step that fails, or any other failure, files one issue in this repo with `work issue new`, whose
@@ -27,6 +26,8 @@ import { shouldRelease } from "./release-decision.ts";
 import { failureIssue } from "./release-failure.ts";
 
 const CWD = process.cwd();
+/** The program that stands in for `work`: DEPLOY_WORK in the tests, else `work`. */
+const WORK = process.env.DEPLOY_WORK ?? "work";
 
 /** What the steps have printed so far, and the step that is running: what a failure's issue reports. */
 const printed: string[] = [];
@@ -74,7 +75,7 @@ function onOrigin(tag: string): boolean {
 function publish(tag: string): void {
   step("push", "git push origin HEAD");
   step("push", 'git push origin "$1"', [tag]);
-  step("release.cut", '"${DEPLOY_WORK:-work}" event release.cut --package jawache/flow-packs --version "$1"', [tag]);
+  step("release.cut", '"$1" event release.cut --package jawache/flow-packs --version "$2"', [WORK, tag]);
 }
 
 function deploy(): void {
@@ -129,7 +130,7 @@ function fileFailure(error: Error): void {
     // The issue is filed without the merged issue's id.
   }
   const { title, body } = failureIssue(header, current, printed);
-  const filed = spawnSync(process.env.DEPLOY_WORK ?? "work", ["issue", "new", "--title", title, "--body", "-"], { cwd: CWD, encoding: "utf8", input: body });
+  const filed = spawnSync(WORK, ["issue", "new", "--title", title, "--body", "-"], { cwd: CWD, encoding: "utf8", input: body });
   if (filed.status === 0) process.stderr.write(`deploy: filed ${filed.stdout.trim()}\n`);
   else process.stderr.write(`deploy: could not file the issue (${filed.error?.message ?? `work issue new exit ${String(filed.status)}`}): ${filed.stderr.trim()}\n`);
 }
