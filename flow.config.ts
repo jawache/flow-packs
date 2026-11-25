@@ -9,7 +9,7 @@ import { justfile } from "./packs/justfile.ts";
 import { node } from "./packs/node.ts";
 import { tdd } from "./packs/tdd.ts";
 import { typescript } from "./packs/typescript.ts";
-import { work } from "./guards/work.ts";
+import { work } from "./packs/work.ts";
 
 export default defineConfig([
   pack(flow),
@@ -20,6 +20,6 @@ export default defineConfig([
   override(typescript.commitRunsEslint).disabled("no eslint in this repo yet: the typecheck is the gate"),
   pack(tdd, { run: "just test-commit" }),
   pack(docs),
-  // This repo is driven by work: `guards/work.ts` is the copy `work init --template default` makes of the template's pack.
+  // This repo is driven by work: bound from `./packs/work.ts`, as the packs this repo ships are.
   pack(work),
 ]);
