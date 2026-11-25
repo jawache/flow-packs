@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.3](https://github.com/jawache/flow-packs/compare/v0.1.2...v0.1.3) (2026-11-25)
+
+### Features
+
+* **deploy:** a deploy that pushes a release emits release.cut after the pushes (flow-packs-6/3) ([6ab082d](https://github.com/jawache/flow-packs/commit/6ab082def56db49c13630346175d8fa493e00946))
+* **deploy:** a failed release.cut files the command that sends it again (flow-packs-6/6) ([7f38f02](https://github.com/jawache/flow-packs/commit/7f38f02df6428f5bf3e4fc9e54cf264824391b58))
+* **work:** the work pack is the ninth pack, built, exported and bound by both test configs (flow-packs-6/1) ([d6df144](https://github.com/jawache/flow-packs/commit/d6df144ee3d14703cdfc4829584a3f4ca3cc456d))
+* **work:** webLineGetsACard holds a main session's turn once after a line from the web with no card raised (flow-packs-6/2) ([6173704](https://github.com/jawache/flow-packs/commit/6173704972f12b5055aaf08fe09f7b8c05659663))
+
+### Bug Fixes
+
+* **work:** the rule, its page and its cases say an answer by any other way lets the turn end; two duplicate unit tests cut (flow-packs-6/6) ([4b0ff95](https://github.com/jawache/flow-packs/commit/4b0ff9519a755ca1a124767c88f107f1e4cb1c86))
 ## [0.1.2](https://github.com/jawache/flow-packs/compare/v0.1.1...v0.1.2) (2026-11-23)
 
 ### Features
