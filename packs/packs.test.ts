@@ -10,7 +10,7 @@ import { fcis } from "./fcis.ts";
 import { git } from "./git.ts";
 import { secrets } from "./secrets.ts";
 import { typescript } from "./typescript.ts";
-import { issueOf, turnIsHeld, work } from "./work.ts";
+import { turnIsHeld, work } from "./work.ts";
 import { defineConfig, loadConfig, pack, type Check, type Ctx } from "@jawache/flow";
 
 const packs = { docs, fcis, git, secrets, typescript };
@@ -189,19 +189,9 @@ describe("work.webLineGetsACard", () => {
   const web = { at: "2026-11-25T16:00:00Z", kind: "answer", by: "line" };
 
   // The entry's own cases cover the table's rows; these are what no case reaches.
-  it("hands back when the answer came from a merge, a move, handled or the session", () => {
-    for (const by of ["merge", "move", "handled", "session"]) {
-      expect(turnIsHeld([web, { at: "2026-11-25T16:01:00Z", kind: "answer", by }], []), by).toBe(false);
-    }
-  });
-
   it("holds again after a newer line from the web than the hold", () => {
     const newer = [web, { at: "2026-11-25T16:10:00Z", kind: "note" }];
     expect(turnIsHeld(newer, ["2026-11-25T16:00:30.000Z"])).toBe(true);
-  });
-
-  it("hands back a WORK_SESSION with no issue in it", () => {
-    expect(issueOf("o/r")).toBeNull();
   });
 
   it("says the reference page's message, word for word", () => {

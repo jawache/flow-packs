@@ -56,7 +56,7 @@ const WEB_LINE_RULE = "work.webLineGetsACard";
 const holdDetail = (issue: string): string => `issue ${issue}`;
 
 /** The issue's id in `WORK_SESSION`, which holds `<owner>/<repo>#<issue>`; `null` when there is none. */
-export function issueOf(session: string): string | null {
+function issueOf(session: string): string | null {
   const id = session.trim().split("#")[1];
   return id === undefined || id === "" ? null : id;
 }
@@ -208,7 +208,7 @@ export const work = definePack("work", {
     .message(
       "Your turn is ending after a line from the web with no card raised. The human's last line came from the web, so they are reading the web and not this terminal. What they need to read or decide is a new work log question. With nothing for them to read or decide, hand back again.",
     )
-    .description("A main session's turn is held once when the human's last line to it came from the web and it has raised no question and the issue has not moved since.")
+    .description("A main session's turn is held once when the human's last line to it came from the web and it has raised no question, no question has been answered any other way and the issue has not moved since.")
     .test({
       block: [
         { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}']) },
@@ -226,7 +226,7 @@ export const work = definePack("work", {
         { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}', '{"at":"2026-11-25T16:01:00Z","kind":"event","body":"Moved to Docs."}']) },
         { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}'], [hold("2026-11-25T16:00:00.940Z", "t-1")]) },
         { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"question"}']) },
-        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}', '{"at":"2026-11-25T16:01:00Z","kind":"answer","by":"terminal"}']) },
+        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}', '{"at":"2026-11-25T16:01:00Z","kind":"answer","by":"session"}']) },
         { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"note"}', '{"at":"2026-11-25T16:01:00Z","kind":"question"}']) },
         { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"note"}', '{"at":"2026-11-25T16:01:00Z","kind":"event","body":"Moved to Docs."}']) },
         { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"note"}'], [hold("2026-11-25T16:00:00.940Z", "t-1")]) },

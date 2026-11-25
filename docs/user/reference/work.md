@@ -85,7 +85,7 @@ A guardrail. When your last line to a session came from the web, the session's n
 It holds the turn when both are true:
 
 1. Your last line to the session came from the web.
-2. Since that line, the session has raised no question, and the issue has not moved.
+2. Since that line, the session has raised no question, no question has been answered any other way, and the issue has not moved.
 
 It holds once for each line from the web. The session's next hand-back is let through, and so is every later one until your next line from the web.
 
@@ -105,6 +105,7 @@ Each row is the end of the issue's `log.jsonl`, oldest first, when the main sess
 | a `note` | held |
 | an `answer` with `by: line`, then a `question` | handed back |
 | an `answer` with `by: line`, then a move of the issue | handed back |
+| an `answer` with `by: line`, then an `answer` with `by: session` | handed back |
 | an `answer` with `by: line`, for which this rule has already held a turn | handed back |
 | a `question`, with no line from you after it | handed back |
 | an `fyi` after an `answer` with `by: line` | held |
