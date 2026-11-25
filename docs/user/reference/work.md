@@ -1,0 +1,121 @@
+---
+summary: "the `work` pack: 2 guardrails · 1 breadcrumb · fires at: session · command · turn-end · takes no parameters"
+---
+
+# The `work` pack
+
+The rules for a repo driven by [work](https://github.com/jawache/work). The work daemon types `[work]` lines into one session of the repo's coding agent, Claude Code or Codex, for each issue. The session tells you with `work log`.
+
+## Binding it
+
+The pack takes no parameters.
+
+```ts
+import { defineConfig, pack } from "@jawache/flow";
+import { work } from "@jawache/flow-packs/work";
+
+export default defineConfig([pack(work)]);
+```
+
+To turn one entry off, say so in the config: `override(work.webLineGetsACard).disabled("why")`.
+
+## What the repo needs in place
+
+- `work` on the `PATH`. It provides `work log`.
+- A `work.yml` at the repo root.
+- flow 0.4.0 or later.
+
+## Entries
+
+| Entry | Kind | What it does |
+| --- | --- | --- |
+| [`work.orientation`](#workorientation) | breadcrumb | Tells each session how a repo driven by work works |
+| [`work.playwrightClosesOwnBrowser`](#workplaywrightclosesownbrowser) | guardrail | Refuses the Playwright CLI's `close-all` and `kill-all` |
+| [`work.webLineGetsACard`](#workweblinegetsacard) | guardrail | [Holds](./glossary.md#hold) a turn that ends after a [line from the web](./glossary.md#line-from-the-web) with no card raised |
+
+## `work.orientation`
+
+A breadcrumb. Without it, a session reads `[work]` lines as a stranger's messages, and replies in the terminal.
+
+- **Shown** once, at the start of a session.
+- **To** every agent.
+
+### What the agent reads
+
+```text
+This repo is driven by work. Each issue is a folder in the record, `.work/<id>/`, with one session of the repo's coding agent, Claude Code or Codex, in its own worktree; the work daemon types lines starting with `[work]` into it. `[work] /work <verb> <issue>` is the issue entering a status: invoke the `work` skill, which dispatches the verb. Any other `[work]` line relays the daemon, such as a merge of the issue's branch.
+The record is `.work/<id>/`: `issue.md`, `tasks/`, `log.jsonl` and `artifacts/`. Git ignores it, so what you write there is saved as written and never committed. You edit `issue.md` and the tasks as Markdown, and the daemon checks each change of `issue.md` and types what is wrong into its session; a move is `work issue next <id>`, which writes the `status:` line, and only where the skill says. Only the daemon writes `log.jsonl`: ask the human with `work log question --ask "…"` and its body on stdin as a quoted heredoc, then stop; tell them with `work log fyi`. Never record a session's state in the record.
+Print every link as a Markdown link, so the terminal opens it: `[tasks/3.md](http://localhost:4242/work-3/3)`, the port being 4242 unless `web:` in `~/.work/config.yml` says otherwise.
+`.work/` links out of the repo. Run Node code there with `NODE_OPTIONS="--preserve-symlinks --preserve-symlinks-main"`, or it cannot find the repo's packages. Call the tool by `node_modules/.bin/<tool>`: that setting breaks `npx`.
+```
+
+## `work.playwrightClosesOwnBrowser`
+
+A guardrail. The Playwright CLI keeps one list of open browsers for the user. Its `close-all` and `kill-all` close every session's browsers on the machine, whatever folder they run in.
+
+- **Refuses at** a shell command is about to run.
+- **For** every agent, at any status.
+- **Reads** the command line, parsed. The CLI is the program, an argument of `npx`, or a variable the line expands as the program.
+
+### What the agent reads when refused
+
+```text
+`close-all` and `kill-all` of the Playwright CLI close every session's browsers on this machine, other issues' demos among them, whatever folder you type them in. Close your own browser by the name you opened it with: `npx -y @playwright/cli -s=<name> close`, `<name>` being the `-s=` you passed to `open`. `list --all` shows which are open.
+```
+
+### Examples
+
+| Command | Result |
+| --- | --- |
+| `npx -y @playwright/cli close-all` | refused |
+| `npx -y @playwright/cli@latest kill-all` | refused |
+| `playwright-cli close-all` | refused |
+| `PC="npx -y @playwright/cli@latest"; $PC close-all` | refused |
+| `npx -y @playwright/cli -s=app-42 close` | runs |
+| `npx -y @playwright/cli list --all` | runs |
+| `grep -rn close-all docs` | runs |
+| `git commit -m 'docs: the guard refuses close-all and kill-all'` | runs |
+
+## `work.webLineGetsACard`
+
+A guardrail. When your last line to a session came from the web, the session's next word to you is on the web too. Without it, a session replies in the terminal and ends its turn, and the web shows nothing.
+
+- **Holds at** turn-end: the session is about to hand back.
+- **For** the main session only. A subagent's hand-back is never held.
+- **Reads** three things, and no coding agent's transcript:
+  - `WORK_SESSION`, for the issue's id;
+  - the issue's log, `.work/<id>/log.jsonl`;
+  - flow's own log in the worktree, `.flow/log/*.jsonl`, for its earlier holds.
+
+### When it holds
+
+It holds the turn when both are true:
+
+1. Your last line to the session came from the web.
+2. Since that line, the session has raised no question, and the issue has not moved.
+
+It holds once for each line from the web. The session's next hand-back is let through, and so is every later one until your next line from the web.
+
+### What the agent reads when held
+
+```text
+Your turn is ending after a line from the web with no card raised. The human's last line came from the web, so they are reading the web and not this terminal. What they need to read or decide is a new work log question. With nothing for them to read or decide, hand back again.
+```
+
+### Examples
+
+Each row is the end of the issue's `log.jsonl`, oldest first, when the main session hands back.
+
+| The log ends with | Result |
+| --- | --- |
+| an `answer` with `by: line` | held |
+| a `note` | held |
+| an `answer` with `by: line`, then a `question` | handed back |
+| an `answer` with `by: line`, then a move of the issue | handed back |
+| an `answer` with `by: line`, for which this rule has already held a turn | handed back |
+| a `question`, with no line from you after it | handed back |
+| an `fyi` after an `answer` with `by: line` | held |
+
+A line you type in the terminal writes nothing to the log, so the rule holds no turn for it.
+
+A session that work did not start has no `WORK_SESSION`, and is never held.
