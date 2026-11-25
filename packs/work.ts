@@ -220,6 +220,8 @@ export const work = definePack("work", {
           actor: ["main"],
           world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}'], [hold("2026-11-25T16:05:00.000Z", "other-1"), hold("2026-11-25T15:00:00.000Z", "t-1")]),
         },
+        // a hold made before a newer line from the web does not count
+        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}', '{"at":"2026-11-25T16:10:00Z","kind":"note"}'], [hold("2026-11-25T16:00:30.000Z", "t-1")]) },
       ],
       pass: [
         { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}', '{"at":"2026-11-25T16:01:00Z","kind":"question"}']) },
