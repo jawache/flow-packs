@@ -163,6 +163,7 @@ describe("the release event", () => {
     expect(git(bare, "rev-parse", "refs/heads/main")).toBe(git(clone, "rev-parse", "HEAD"));
     expect(work.calls()).toHaveLength(2);
     expect(readFileSync(join(clone, "..", "filed.md"), "utf8")).toContain("the step `release.cut`");
+    expect(readFileSync(join(clone, "..", "filed.md"), "utf8")).toContain("work event release.cut --package jawache/flow-packs --version v0.1.1");
   });
 });
 

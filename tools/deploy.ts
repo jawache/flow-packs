@@ -23,7 +23,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { out, tee } from "./shell.ts";
 import { shouldRelease } from "./release-decision.ts";
-import { failureIssue, releaseCutCommand } from "./release-failure.ts";
+import { failureIssue, releaseCutArgs } from "./release-failure.ts";
 
 const CWD = process.cwd();
 /** The program that stands in for `work`: DEPLOY_WORK in the tests, else `work`. */
@@ -77,8 +77,8 @@ function onOrigin(tag: string): boolean {
 function publish(tag: string): void {
   step("push", "git push origin HEAD");
   step("push", 'git push origin "$1"', [tag]);
-  retry = releaseCutCommand("work", tag);
-  step("release.cut", '"$1" event release.cut --package jawache/flow-packs --version "$2"', [WORK, tag]);
+  retry = ["work", ...releaseCutArgs(tag)].join(" ");
+  step("release.cut", '"$@"', [WORK, ...releaseCutArgs(tag)]);
 }
 
 function deploy(): void {

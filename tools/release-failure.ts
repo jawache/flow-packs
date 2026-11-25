@@ -8,8 +8,8 @@ function issueOf(mergeHeader: string): string {
   return /['/]([a-z][a-z0-9-]*?-\d+)(?:-[^'/]*)?'/.exec(mergeHeader)?.[1] ?? "";
 }
 
-/** The command that tells work a release was cut: the deploy's `release.cut` step, and the line its issue gives to run it again. */
-export const releaseCutCommand = (work: string, tag: string): string => `${work} event release.cut --package jawache/flow-packs --version ${tag}`;
+/** The arguments of `work` that tell it a release was cut: the deploy's `release.cut` step runs them, and the line its issue gives to run again is `work` and these. */
+export const releaseCutArgs = (tag: string): string[] => ["event", "release.cut", "--package", "jawache/flow-packs", "--version", tag];
 
 /** The title and body of the issue for a deploy whose `step` failed after `printed` lines, `mergeHeader` being the header of the newest merge that is not a release's own. A `retry` command, when there is one, is given to run by hand: no later deploy runs it. */
 export function failureIssue(mergeHeader: string, step: string, printed: readonly string[], retry = ""): { title: string; body: string } {
