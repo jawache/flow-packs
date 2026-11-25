@@ -2,10 +2,13 @@
 //
 // It decides first: with no `feat`, `fix` or breaking change since the last tag it says so in one
 // line and stops, before anything runs. Otherwise it installs from the lockfile, runs
-// `just release-check`, then `just release`, then pushes the branch and the new tag. A failed step
+// `just release-check`, then `just release`, then pushes the branch and the new tag, then emits
+// `work event release.cut --package jawache/flow-packs --version <tag>`, so each project's updater
+// takes the release. A failed step
 // stops it with a non-zero exit before any later step, so nothing reaches the remote unless the
 // check and the release both passed. A release that is tagged here and not on origin, as after a
-// push that failed, is pushed by the next deploy, whatever landed since.
+// push that failed, is pushed, and its event emitted, by the next deploy, whatever landed since.
+// A failed event fails the deploy and files its issue, with the release left pushed.
 //
 // It never prompts: every step runs with standard input from /dev/null, as the daemon runs it.
 // A step that fails, or any other failure, files one issue in this repo with `work issue new`, whose
@@ -67,9 +70,11 @@ function onOrigin(tag: string): boolean {
   throw new Error(`cannot tell whether ${tag} is on origin (git ls-remote exit ${String(ran.status)}): ${ran.stderr.trim()}`);
 }
 
-function push(tag: string): void {
+/** Push the branch and the tag, then tell each project's updater about the release. The event runs only once the remote has the tag. */
+function publish(tag: string): void {
   step("push", "git push origin HEAD");
   step("push", 'git push origin "$1"', [tag]);
+  step("release.cut", '"${DEPLOY_WORK:-work}" event release.cut --package jawache/flow-packs --version "$1"', [tag]);
 }
 
 function deploy(): void {
@@ -83,7 +88,7 @@ function deploy(): void {
   // A release tagged here and missing on origin is pushed whatever landed since.
   if (before !== "" && !onOrigin(before)) {
     process.stdout.write(`deploy: ${before} is not on origin, pushing it\n`);
-    push(before);
+    publish(before);
     return;
   }
 
@@ -110,7 +115,7 @@ function deploy(): void {
     }
     throw error;
   }
-  push(tag);
+  publish(tag);
 }
 
 /** File the failure as an issue in this repo's record. Never throws: a failure to file is printed, and the deploy still fails. */

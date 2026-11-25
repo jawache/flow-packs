@@ -46,6 +46,14 @@ function fakeWork(root: string): string {
   return path;
 }
 
+/** A stand-in for `work` that records each call's arguments, one line a call, in `calls` beside it, files an issue as `fakeWork` does, and exits 1 on `event` when `failEvent`. `atCall` is a shell line it runs first. */
+function recordingWork(root: string, failEvent = false, atCall = ":"): { path: string; calls: () => string[] } {
+  const path = join(root, "work");
+  writeFileSync(path, `#!/bin/sh\ndir=$(dirname "$0")\n${atCall}\nprintf '%s\\n' "$*" >> "$dir/calls"\nif [ "$1" = event ]; then ${failEvent ? "echo no daemon >&2; exit 1" : "exit 0"}; fi\nprintf "%s\\n" "$4" > "$dir/filed.md"; cat >> "$dir/filed.md"\n`, { mode: 0o755 });
+  const calls = join(root, "calls");
+  return { path, calls: () => (existsSync(calls) ? readFileSync(calls, "utf8").trim().split("\n") : []) };
+}
+
 const refs = (bare: string): string => git(bare, "for-each-ref");
 
 function deploy(clone: string, env: Record<string, string> = {}): { status: number | null; out: string } {
@@ -143,6 +151,47 @@ describe("just deploy", () => {
     expect(ran.status, ran.out).toBe(0);
     expect(git(bare, "tag", "-l", "v0.1.1")).toBe("v0.1.1");
     expect(git(bare, "rev-parse", "refs/heads/main")).toBe(git(clone, "rev-parse", "HEAD"));
+  });
+});
+
+describe("the release event", () => {
+  it("is emitted once, after the remote has the tag, with the tag it pushed", () => {
+    const { clone, bare } = scene(["fix(x): a bug"]);
+    // The stand-in reads the bare repo as the event arrives: the tag must already be there.
+    const work = recordingWork(join(clone, ".."), false, `git -C '${bare}' tag -l v0.1.1 | tr -d '\\n' > "$dir/tag-at-event"`);
+    const ran = deploy(clone, { DEPLOY_WORK: work.path });
+    expect(ran.status, ran.out).toBe(0);
+    expect(work.calls()).toEqual(["event release.cut --package jawache/flow-packs --version v0.1.1"]);
+    expect(readFileSync(join(clone, "..", "tag-at-event"), "utf8")).toBe("v0.1.1");
+  });
+
+  it("is not emitted by a deploy that releases nothing", () => {
+    const { clone } = scene(["docs: words"]);
+    const work = recordingWork(join(clone, ".."));
+    const ran = deploy(clone, { DEPLOY_WORK: work.path });
+    expect(ran.status, ran.out).toBe(0);
+    expect(work.calls()).toEqual([]);
+  });
+
+  it("is emitted for a tag an earlier deploy left unpushed, and for that tag alone", () => {
+    const { clone } = scene(["fix: a bug"]);
+    git(clone, "commit", "-q", "--allow-empty", "-m", "chore(release): 0.1.1");
+    git(clone, "tag", "-a", "v0.1.1", "-m", "v0.1.1");
+    const work = recordingWork(join(clone, ".."));
+    const ran = deploy(clone, { DEPLOY_WORK: work.path });
+    expect(ran.status, ran.out).toBe(0);
+    expect(work.calls()).toEqual(["event release.cut --package jawache/flow-packs --version v0.1.1"]);
+  });
+
+  it("fails the deploy and files an issue when it fails, with the release left pushed", () => {
+    const { clone, bare } = scene(["fix: a bug"]);
+    const work = recordingWork(join(clone, ".."), true);
+    const ran = deploy(clone, { DEPLOY_WORK: work.path });
+    expect(ran.status).not.toBe(0);
+    expect(git(bare, "tag", "-l", "v0.1.1")).toBe("v0.1.1");
+    expect(git(bare, "rev-parse", "refs/heads/main")).toBe(git(clone, "rev-parse", "HEAD"));
+    expect(work.calls()).toHaveLength(2);
+    expect(readFileSync(join(clone, "..", "filed.md"), "utf8")).toContain("the step `release.cut`");
   });
 });
 
