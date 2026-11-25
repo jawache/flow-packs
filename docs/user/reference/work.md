@@ -4,11 +4,9 @@ summary: "the `work` pack: 2 guardrails · 1 breadcrumb · fires at: session · 
 
 # The `work` pack
 
-The rules for a repo driven by [work](https://github.com/jawache/work). The work daemon types `[work]` lines into one session of the repo's coding agent, Claude Code or Codex, for each issue. The session tells you with `work log`.
+The rules for a repo driven by [work](https://github.com/jawache/work).
 
 ## Binding it
-
-The pack takes no parameters.
 
 ```ts
 import { defineConfig, pack } from "@jawache/flow";
@@ -17,13 +15,10 @@ import { work } from "@jawache/flow-packs/work";
 export default defineConfig([pack(work)]);
 ```
 
-To turn one entry off, say so in the config: `override(work.webLineGetsACard).disabled("why")`.
-
 ## What the repo needs in place
 
 - `work` on the `PATH`. It provides `work log`.
 - A `work.yml` at the repo root.
-- flow 0.4.0 or later.
 
 ## Entries
 
@@ -31,14 +26,13 @@ To turn one entry off, say so in the config: `override(work.webLineGetsACard).di
 | --- | --- | --- |
 | [`work.orientation`](#workorientation) | breadcrumb | Tells each session how a repo driven by work works |
 | [`work.playwrightClosesOwnBrowser`](#workplaywrightclosesownbrowser) | guardrail | Refuses the Playwright CLI's `close-all` and `kill-all` |
-| [`work.webLineGetsACard`](#workweblinegetsacard) | guardrail | [Holds](./glossary.md#hold) a turn that ends after a [line from the web](./glossary.md#line-from-the-web) with no card raised |
+| [`work.webLineGetsACard`](#workweblinegetsacard) | guardrail | [Holds](./glossary.md#hold) a turn that ends after a [line from the web](./glossary.md#line-from-the-web) with no question raised |
 
 ## `work.orientation`
 
-A breadcrumb. Without it, a session reads `[work]` lines as a stranger's messages, and replies in the terminal.
+A breadcrumb.
 
 - **Shown** once, at the start of a session.
-- **To** every agent.
 
 ### What the agent reads
 
@@ -51,10 +45,9 @@ Print every link as a Markdown link, so the terminal opens it: `[tasks/3.md](htt
 
 ## `work.playwrightClosesOwnBrowser`
 
-A guardrail. The Playwright CLI keeps one list of open browsers for the user. Its `close-all` and `kill-all` close every session's browsers on the machine, whatever folder they run in.
+A guardrail.
 
 - **Refuses at** a shell command is about to run.
-- **For** every agent, at any status.
 - **Reads** the command line, parsed. The CLI is the program, an argument of `npx`, or a variable the line expands as the program.
 
 ### What the agent reads when refused
@@ -78,7 +71,7 @@ A guardrail. The Playwright CLI keeps one list of open browsers for the user. It
 
 ## `work.webLineGetsACard`
 
-A guardrail. When your last line to a session came from the web, the session's next word to you is on the web too. Without it, a session replies in the terminal and ends its turn, and the web shows nothing.
+A guardrail. When your last line to a session came from the web, the session's next word to you is on the web too.
 
 - **Holds at** turn-end: the session is about to hand back.
 - **For** the main session only. A subagent's hand-back is never held.
@@ -117,5 +110,3 @@ Each row is the end of the issue's `log.jsonl`, oldest first, when the main sess
 | an `fyi` after an `answer` with `by: line` | held |
 
 A line you type in the terminal writes nothing to the log, so the rule holds no turn for it.
-
-A session that work did not start has no `WORK_SESSION`, and is never held.
