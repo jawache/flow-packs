@@ -12,6 +12,7 @@ import { node } from "../packs/node.ts";
 import { secrets } from "../packs/secrets.ts";
 import { tdd } from "../packs/tdd.ts";
 import { typescript } from "../packs/typescript.ts";
+import { work } from "../packs/work.ts";
 
 const PURE = ["src/lib/**/domain.ts"];
 
@@ -31,4 +32,5 @@ export default defineConfig([
   pack(secrets, { envFiles: "config/.env*", localFiles: ["config/.env.keys"] }),
   pack(tdd, { run: "make test", tests: ["**/__tests__/**/*.spec.ts"] }),
   pack(typescript, { typecheck: "make types", lint: "make lint" }),
+  pack(work),
 ]);

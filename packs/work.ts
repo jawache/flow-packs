@@ -1,15 +1,11 @@
-// examples/default/guards/work.ts — the flow pack a repo driven by work binds.
+// packs/work.ts — the flow pack a repo driven by work binds.
 //
 // Two entries: a breadcrumb that tells every session how a driven repo works, and the guardrail that
 // refuses the Playwright CLI's `close-all` and `kill-all`, which close every session's browsers. The
 // daemon enforces neither; a driven repo turns them on in its own flow.config.ts:
 //
-//   import { work } from "./guards/work.ts";
+//   import { work } from "@jawache/flow-packs/work";
 //   export default defineConfig([ …, pack(work) ]);
-//
-// `work init --template` copies this file into the repo's guards/ folder, never links it: the
-// import of @jawache/flow resolves from the repo's own node_modules, which a copy under ~/.work has
-// none of.
 //
 // The guardrails on a command read the parse flow makes of each command line (`ctx.commands`, one
 // entry per simple command, nested ones included): a program is compared without its path, a
@@ -43,7 +39,7 @@ const playwrightAll: Check = (ctx) => {
 };
 
 /**
- * A repo driven by work: the daemon types `[work]` lines into one Claude Code session per issue,
+ * A repo driven by work: the daemon types `[work]` lines into one session of the repo's coding agent, Claude Code or Codex, per issue,
  * and the session tells the human with `work log`.
  *
  * @setup `work` on the PATH (it provides `work log`), and a `work.yml` at the repo root.
@@ -57,9 +53,10 @@ export const work = definePack("work", {
     .at(session)
     .text(
       [
-        "This repo is driven by work. Each issue is a folder in the record, `.work/<id>/`, with one Claude Code session in its own worktree; the work daemon types lines starting with `[work]` into it. `[work] /work <verb> <issue>` is the issue entering a status: invoke the `work` skill, which dispatches the verb. Any other `[work]` line relays the daemon, such as a merge of the issue's branch.",
-        "The record is `.work/<id>/`: `issue.md`, `tasks/`, `log.jsonl` and `artifacts/`. Git ignores it, so what you write there is saved as written and never committed. You edit `issue.md` and the tasks as Markdown; a move is `work issue next <id>`, which writes the `status:` line, and only where the skill says. Only the daemon writes `log.jsonl`: ask the human with `work log question --ask \"…\"` and its body on stdin as a quoted heredoc, then stop; tell them with `work log fyi`. Never record a session's state in the record.",
-        "Print every link as a Markdown link, so the terminal opens it: `[tasks/3.md](http://localhost:4242/work-3/3)`, the port being `web:` in `~/.work/config.yml`.",
+        "This repo is driven by work. Each issue is a folder in the record, `.work/<id>/`, with one session of the repo's coding agent, Claude Code or Codex, in its own worktree; the work daemon types lines starting with `[work]` into it. `[work] /work <verb> <issue>` is the issue entering a status: invoke the `work` skill, which dispatches the verb. Any other `[work]` line relays the daemon, such as a merge of the issue's branch.",
+        "The record is `.work/<id>/`: `issue.md`, `tasks/`, `log.jsonl` and `artifacts/`. Git ignores it, so what you write there is saved as written and never committed. You edit `issue.md` and the tasks as Markdown, and the daemon checks each change of `issue.md` and types what is wrong into its session; a move is `work issue next <id>`, which writes the `status:` line, and only where the skill says. Only the daemon writes `log.jsonl`: ask the human with `work log question --ask \"…\"` and its body on stdin as a quoted heredoc, then stop; tell them with `work log fyi`. Never record a session's state in the record.",
+        "Print every link as a Markdown link, so the terminal opens it: `[tasks/3.md](http://localhost:4242/work-3/3)`, the port being 4242 unless `web:` in `~/.work/config.yml` says otherwise.",
+        "`.work/` links out of the repo. Run Node code there with `NODE_OPTIONS=\"--preserve-symlinks --preserve-symlinks-main\"`, or it cannot find the repo's packages. Call the tool by `node_modules/.bin/<tool>`: that setting breaks `npx`.",
       ].join("\n"),
     )
     .description("How a repo driven by work works: [work] lines, the work skill, the record in .work, work log."),

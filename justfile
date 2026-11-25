@@ -31,7 +31,7 @@ typecheck:
 test *args:
     npx vitest run "$@"
 
-[doc("Run every entry's own .test({ pass, block }) cases, with all eight packs bound twice: by tests/all.config.ts, and by tests/layout.config.ts, a second repo's folders and file names, so a case that names a path the pack invented fails here.")]
+[doc("Run every entry's own .test({ pass, block }) cases, with all nine packs bound twice: by tests/all.config.ts, and by tests/layout.config.ts, a second repo's folders and file names, so a case that names a path the pack invented fails here.")]
 test-rules:
     node node_modules/@jawache/flow/dist/flow.mjs test tests/all.config.ts
     node node_modules/@jawache/flow/dist/flow.mjs test tests/layout.config.ts

@@ -7,7 +7,7 @@
 
 import { build } from "esbuild";
 
-export const PACKS = ["docs", "fcis", "git", "justfile", "node", "secrets", "tdd", "typescript"];
+export const PACKS = ["docs", "fcis", "git", "justfile", "node", "secrets", "tdd", "typescript", "work"];
 
 const production = process.argv.includes("--production");
 

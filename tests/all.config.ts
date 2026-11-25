@@ -10,6 +10,7 @@ import { node } from "../packs/node.ts";
 import { secrets } from "../packs/secrets.ts";
 import { tdd } from "../packs/tdd.ts";
 import { typescript } from "../packs/typescript.ts";
+import { work } from "../packs/work.ts";
 
 const PURE = ["**/domain.ts"];
 
@@ -22,4 +23,5 @@ export default defineConfig([
   pack(secrets, { dx: "just dx", encrypt: "just env-encrypt", custody: "file" }),
   pack(tdd, { run: "just test" }),
   pack(typescript, { typecheck: "just typecheck", lint: "just lint", tsconfigBase: "./tsconfig.base.json", eslintBase: "./eslint.config.base.js" }),
+  pack(work),
 ]);
