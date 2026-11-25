@@ -10,7 +10,7 @@ import { fcis } from "./fcis.ts";
 import { git } from "./git.ts";
 import { secrets } from "./secrets.ts";
 import { typescript } from "./typescript.ts";
-import { holdTimes, issueOf, turnIsHeld, work } from "./work.ts";
+import { issueOf, turnIsHeld, work } from "./work.ts";
 import { defineConfig, loadConfig, pack, type Check, type Ctx } from "@jawache/flow";
 
 const packs = { docs, fcis, git, secrets, typescript };
@@ -187,50 +187,20 @@ describe("the packs", () => {
 
 describe("work.webLineGetsACard", () => {
   const web = { at: "2026-11-25T16:00:00Z", kind: "answer", by: "line" };
-  const later = (row: { kind: string; by?: string; body?: string }) => [web, { at: "2026-11-25T16:01:00Z", ...row }];
 
-  it("holds after an answer with by: line, and after a note", () => {
-    expect(turnIsHeld([web], [])).toBe(true);
-    expect(turnIsHeld([{ at: "2026-11-25T16:00:00Z", kind: "note" }], [])).toBe(true);
-  });
-
-  it("holds when only an fyi follows the web line", () => {
-    expect(turnIsHeld(later({ kind: "fyi" }), [])).toBe(true);
-  });
-
-  it("hands back when a question or a move of the issue follows", () => {
-    expect(turnIsHeld(later({ kind: "question" }), [])).toBe(false);
-    expect(turnIsHeld(later({ kind: "event", body: "Moved to Docs." }), [])).toBe(false);
-  });
-
-  it("hands back when the answer came from the terminal, a merge, a move, handled or the session", () => {
-    for (const by of ["terminal", "merge", "move", "handled", "session"]) {
-      expect(turnIsHeld(later({ kind: "answer", by }), []), by).toBe(false);
+  // The entry's own cases cover the table's rows; these are what no case reaches.
+  it("hands back when the answer came from a merge, a move, handled or the session", () => {
+    for (const by of ["merge", "move", "handled", "session"]) {
+      expect(turnIsHeld([web, { at: "2026-11-25T16:01:00Z", kind: "answer", by }], []), by).toBe(false);
     }
   });
 
-  it("holds once for each line from the web", () => {
-    expect(turnIsHeld([web], ["2026-11-25T16:00:30.000Z"])).toBe(false);
+  it("holds again after a newer line from the web than the hold", () => {
     const newer = [web, { at: "2026-11-25T16:10:00Z", kind: "note" }];
     expect(turnIsHeld(newer, ["2026-11-25T16:00:30.000Z"])).toBe(true);
   });
 
-  it("counts a hold for this issue only", () => {
-    const line = (issue: string) => JSON.stringify({ ts: "2026-11-25T16:00:30.000Z", kind: "guardrail", id: "work.webLineGetsACard", detail: `issue ${issue}` });
-    const log = [line("other-1"), line("t-1")].join("\n");
-    expect(holdTimes(log, "t-1")).toEqual(["2026-11-25T16:00:30.000Z"]);
-    expect(holdTimes(line("other-1"), "t-1")).toEqual([]);
-    expect(turnIsHeld([web], holdTimes(line("other-1"), "t-1"))).toBe(true);
-  });
-
-  it("compares times as times: a whole second is earlier than the same second with milliseconds", () => {
-    const row = { at: "2026-11-25T16:43:56Z", kind: "answer", by: "line" };
-    expect(turnIsHeld([row], ["2026-11-25T16:43:56.940Z"])).toBe(false);
-  });
-
-  it("reads the issue's id from WORK_SESSION, and hands back a session with none", () => {
-    expect(issueOf("o/r#work-161\n")).toBe("work-161");
-    expect(issueOf("")).toBeNull();
+  it("hands back a WORK_SESSION with no issue in it", () => {
     expect(issueOf("o/r")).toBeNull();
   });
 

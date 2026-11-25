@@ -1,8 +1,9 @@
 // packs/work.ts — the flow pack a repo driven by work binds.
 //
-// Two entries: a breadcrumb that tells every session how a driven repo works, and the guardrail that
-// refuses the Playwright CLI's `close-all` and `kill-all`, which close every session's browsers. The
-// daemon enforces neither; a driven repo turns them on in its own flow.config.ts:
+// Three entries: a breadcrumb that tells every session how a driven repo works, the guardrail that
+// refuses the Playwright CLI's `close-all` and `kill-all`, which close every session's browsers, and
+// a turn-end guardrail that holds a session's turn once when the human's last line came from the web
+// and no card was raised. The daemon enforces none of them; a driven repo turns them on in its own flow.config.ts:
 //
 //   import { work } from "@jawache/flow-packs/work";
 //   export default defineConfig([ …, pack(work) ]);
@@ -81,29 +82,28 @@ export function turnIsHeld(rows: readonly LogRow[], holds: readonly string[]): b
   return !holds.some((hold) => Date.parse(hold) >= since);
 }
 
-/** The times of this rule's holds for one issue, from the lines of flow's own log. */
-export function holdTimes(flowLogLines: string, issue: string): string[] {
-  return flowLogLines
+/** The rows of a JSONL text: blank lines dropped, a line that does not parse (a torn one) skipped. */
+function jsonl<T>(text: string): T[] {
+  return text
     .split("\n")
     .filter((line) => line.trim() !== "")
     .flatMap((line) => {
       try {
-        const row = JSON.parse(line) as { ts?: string; id?: string; kind?: string; detail?: string };
-        return row.kind === "guardrail" && row.id === WEB_LINE_RULE && row.detail === holdDetail(issue) && row.ts !== undefined ? [row.ts] : [];
+        return [JSON.parse(line) as T];
       } catch {
         return [];
       }
     });
 }
 
+/** The times of this rule's holds for one issue, from the lines of flow's own log. */
+const holdTimes = (flowLog: string, issue: string): string[] =>
+  jsonl<{ ts?: string; id?: string; kind?: string; detail?: string }>(flowLog).flatMap((row) =>
+    row.kind === "guardrail" && row.id === WEB_LINE_RULE && row.detail === holdDetail(issue) && row.ts !== undefined ? [row.ts] : [],
+  );
+
 /** The main session: an agent that is not a subagent. */
 const main = defineCategory("main", (facts) => !facts.subagent);
-
-const parseRows = (text: string): LogRow[] =>
-  text
-    .split("\n")
-    .filter((line) => line.trim() !== "")
-    .map((line) => JSON.parse(line) as LogRow);
 
 /**
  * Reads `WORK_SESSION`, the issue's `.work/<id>/log.jsonl`, and flow's own log for this rule's earlier
@@ -115,7 +115,7 @@ const webLineWithoutCard: Check = async (ctx) => {
   if (issue === null) return ctx.ok();
   const path = `.work/${issue}/log.jsonl`;
   if (!(await ctx.fs.exists(path))) return ctx.ok();
-  const rows = parseRows(await ctx.fs.read(path));
+  const rows = jsonl<LogRow>(await ctx.fs.read(path));
   if (!turnIsHeld(rows, [])) return ctx.ok(); // nothing to hold for: skip the read of flow's log
   const flowLog = (await ctx.exec(`grep -h '"id":"${WEB_LINE_RULE}"' .flow/log/*.jsonl`)).stdout;
   return turnIsHeld(rows, holdTimes(flowLog, issue)) ? ctx.fail(holdDetail(issue)) : ctx.ok();
@@ -227,6 +227,11 @@ export const work = definePack("work", {
         { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}'], [hold("2026-11-25T16:00:00.940Z", "t-1")]) },
         { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"question"}']) },
         { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}', '{"at":"2026-11-25T16:01:00Z","kind":"answer","by":"terminal"}']) },
+        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"note"}', '{"at":"2026-11-25T16:01:00Z","kind":"question"}']) },
+        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"note"}', '{"at":"2026-11-25T16:01:00Z","kind":"event","body":"Moved to Docs."}']) },
+        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"note"}'], [hold("2026-11-25T16:00:00.940Z", "t-1")]) },
+        // a torn last line of the log is skipped, not thrown on
+        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}', '{"at":"2026-11-25T16:01:00Z","kind":"question"}', '{"at":"2026-11-25T16:02:00Z","kind":"fy']) },
         // a subagent's hand-back is never held
         { actions: [], actor: ["subagent"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}']) },
         // no WORK_SESSION, and an issue with no log
