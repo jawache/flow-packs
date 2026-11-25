@@ -12,7 +12,7 @@ Packs of guardrails and breadcrumbs for [flow](https://github.com/jawache/flow) 
 | `secrets` | Env files committed encrypted, decrypted through one seam | none required |
 | `tdd` | Tests that test behaviour, and the suite gates the commit | `run` |
 | `typescript` | Strict TypeScript, and the typecheck and lint gate the commit | `typecheck`, `lint` |
-| `work` | A repo driven by [work](https://github.com/jawache/work): the session note, the Playwright CLI's `close-all` and `kill-all` refused, and a turn that ends after a line from the web with no card held | none |
+| `work` | A repo driven by [work](https://github.com/jawache/work): the session note, the Playwright CLI's `close-all` and `kill-all` refused, and a turn held when it ends after a line from the web with no card raised | none |
 
 Each pack's parameters are typed. Binding one without a required parameter does not compile.
 
@@ -54,6 +54,6 @@ export default defineConfig([
 | `just build` | Builds `dist/<pack>.mjs` and `dist/types/` |
 | `just release-check` | Makes the release in a throwaway clone, installs it into a scratch project beside flow, and runs every pack's cases from the installed files |
 | `just release` | Makes the release commit, then a second commit that holds `dist/`, and tags it. Pushes nothing |
-| `just deploy` | Runs `just install`, `just release-check`, then `just release`, then pushes the release commit and its tag. Then it emits `work event release.cut --package jawache/flow-packs --version <tag>`, so each project with an updater takes the release. It releases only when a `feat`, a `fix` or a breaking change landed since the last tag |
+| `just deploy` | Runs `just install`, `just release-check`, then `just release`, then pushes the release commit and its tag. It releases only when a `feat`, a `fix` or a breaking change landed since the last tag. After the pushes it emits `work event release.cut --package jawache/flow-packs --version <tag>`, so each project with an updater takes the release |
 
 The version is computed from the Conventional Commit headers since the last tag. An issue that reaches Done runs `just deploy`. A deploy that fails files an issue in this repo, with the last lines it printed.
