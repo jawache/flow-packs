@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { failureIssue } from "../tools/release-failure.ts";
+import { failureIssue, releaseCutArgs } from "../tools/release-failure.ts";
 
 describe("the issue a failed deploy files", () => {
   it("names the issue in the newest merge's branch", () => {
@@ -24,5 +24,12 @@ describe("the issue a failed deploy files", () => {
   it("fences with more backticks than the output holds", () => {
     const { body } = failureIssue("", "install", ["```", "x"]);
     expect(body).toContain("````\n```\nx\n````");
+  });
+
+  it("gives the command to send the release event again, only when there is one", () => {
+    expect(releaseCutArgs("v0.1.1").join(" ")).toBe("event release.cut --package jawache/flow-packs --version v0.1.1");
+    const retry = "work event release.cut --package jawache/flow-packs --version v0.1.1";
+    expect(failureIssue("", "release.cut", ["no daemon"], retry).body).toContain(`\n\`\`\`sh\n${retry}\n\`\`\`\n`);
+    expect(failureIssue("", "push", ["no daemon"]).body).not.toContain("event release.cut");
   });
 });

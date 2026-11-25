@@ -10,6 +10,7 @@ import { fcis } from "./fcis.ts";
 import { git } from "./git.ts";
 import { secrets } from "./secrets.ts";
 import { typescript } from "./typescript.ts";
+import { work } from "./work.ts";
 import { defineConfig, loadConfig, pack, type Check, type Ctx } from "@jawache/flow";
 
 const packs = { docs, fcis, git, secrets, typescript };
@@ -181,5 +182,14 @@ describe("the packs", () => {
     expect(await detail("git push -f")).toBe("`git push` forces the remote with `-f`");
     expect(await detail("/usr/bin/git push -f nowhere main")).toBe("`git push` forces the remote with `-f`");
     expect(await detail("git push -fu origin main")).toBe("`git push` forces the remote with `-f` in `-fu`");
+  });
+});
+
+describe("work.webLineGetsACard", () => {
+  it("says the reference page's message, word for word", () => {
+    const said = sentence(loaded(loadConfig(defineConfig([pack(work)]))))("work.webLineGetsACard");
+    expect(said).toBe(
+      "Your turn is ending after a line from the web with no card raised. The human's last line came from the web, so they are reading the web and not this terminal. What they need to read or decide is a new work log question. With nothing for them to read or decide, hand back again.",
+    );
   });
 });

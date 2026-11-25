@@ -1,6 +1,6 @@
 {
   "name": "@jawache/flow-packs",
-  "description": "Packs of guardrails and breadcrumbs for flow: git, justfile, node, secrets, typescript, tdd, fcis and docs.",
+  "description": "Packs of guardrails and breadcrumbs for flow: git, justfile, node, secrets, typescript, tdd, fcis, docs and work.",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -39,6 +39,10 @@
     "./typescript": {
       "types": "./dist/types/typescript.d.ts",
       "default": "./dist/typescript.mjs"
+    },
+    "./work": {
+      "types": "./dist/types/work.d.ts",
+      "default": "./dist/work.mjs"
     }
   },
   "files": [

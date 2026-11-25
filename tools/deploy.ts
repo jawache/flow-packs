@@ -2,10 +2,12 @@
 //
 // It decides first: with no `feat`, `fix` or breaking change since the last tag it says so in one
 // line and stops, before anything runs. Otherwise it installs from the lockfile, runs
-// `just release-check`, then `just release`, then pushes the branch and the new tag. A failed step
-// stops it with a non-zero exit before any later step, so nothing reaches the remote unless the
-// check and the release both passed. A release that is tagged here and not on origin, as after a
-// push that failed, is pushed by the next deploy, whatever landed since.
+// `just release-check`, then `just release`, then pushes the branch and the new tag, then emits
+// `work event release.cut --package jawache/flow-packs --version <tag>`, so each project's updater
+// takes the release. A failed step stops it with a non-zero exit before any later step, so nothing
+// reaches the remote unless the check and the release both passed. A release that is tagged here
+// and not on origin, as after a push that failed, is pushed, and its event emitted, by the next
+// deploy, whatever landed since. A failed event fails the deploy and files its issue, with the release left pushed.
 //
 // It never prompts: every step runs with standard input from /dev/null, as the daemon runs it.
 // A step that fails, or any other failure, files one issue in this repo with `work issue new`, whose
@@ -21,13 +23,17 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { out, tee } from "./shell.ts";
 import { shouldRelease } from "./release-decision.ts";
-import { failureIssue } from "./release-failure.ts";
+import { failureIssue, releaseCutArgs } from "./release-failure.ts";
 
 const CWD = process.cwd();
+/** The program that stands in for `work`: DEPLOY_WORK in the tests, else `work`. */
+const WORK = process.env.DEPLOY_WORK ?? "work";
 
 /** What the steps have printed so far, and the step that is running: what a failure's issue reports. */
 const printed: string[] = [];
 let current = "check branch";
+/** The command that sends the release event again, once the deploy is at that step. */
+let retry = "";
 
 /** Run a shell line with no terminal input and show its output when it ends, not as it goes. Throws when it fails. */
 function step(name: string, line: string, args: readonly string[] = []): void {
@@ -67,9 +73,12 @@ function onOrigin(tag: string): boolean {
   throw new Error(`cannot tell whether ${tag} is on origin (git ls-remote exit ${String(ran.status)}): ${ran.stderr.trim()}`);
 }
 
-function push(tag: string): void {
+/** Push the branch and the tag, then tell each project's updater about the release. The event runs only once the remote has the tag. */
+function publish(tag: string): void {
   step("push", "git push origin HEAD");
   step("push", 'git push origin "$1"', [tag]);
+  retry = ["work", ...releaseCutArgs(tag)].join(" ");
+  step("release.cut", '"$@"', [WORK, ...releaseCutArgs(tag)]);
 }
 
 function deploy(): void {
@@ -83,7 +92,7 @@ function deploy(): void {
   // A release tagged here and missing on origin is pushed whatever landed since.
   if (before !== "" && !onOrigin(before)) {
     process.stdout.write(`deploy: ${before} is not on origin, pushing it\n`);
-    push(before);
+    publish(before);
     return;
   }
 
@@ -110,7 +119,7 @@ function deploy(): void {
     }
     throw error;
   }
-  push(tag);
+  publish(tag);
 }
 
 /** File the failure as an issue in this repo's record. Never throws: a failure to file is printed, and the deploy still fails. */
@@ -123,8 +132,8 @@ function fileFailure(error: Error): void {
   } catch {
     // The issue is filed without the merged issue's id.
   }
-  const { title, body } = failureIssue(header, current, printed);
-  const filed = spawnSync(process.env.DEPLOY_WORK ?? "work", ["issue", "new", "--title", title, "--body", "-"], { cwd: CWD, encoding: "utf8", input: body });
+  const { title, body } = failureIssue(header, current, printed, retry);
+  const filed = spawnSync(WORK, ["issue", "new", "--title", title, "--body", "-"], { cwd: CWD, encoding: "utf8", input: body });
   if (filed.status === 0) process.stderr.write(`deploy: filed ${filed.stdout.trim()}\n`);
   else process.stderr.write(`deploy: could not file the issue (${filed.error?.message ?? `work issue new exit ${String(filed.status)}`}): ${filed.stderr.trim()}\n`);
 }

@@ -31,7 +31,7 @@ typecheck:
 test *args:
     npx vitest run "$@"
 
-[doc("Run every entry's own .test({ pass, block }) cases, with all eight packs bound twice: by tests/all.config.ts, and by tests/layout.config.ts, a second repo's folders and file names, so a case that names a path the pack invented fails here.")]
+[doc("Run every entry's own .test({ pass, block }) cases, with all nine packs bound twice: by tests/all.config.ts, and by tests/layout.config.ts, a second repo's folders and file names, so a case that names a path the pack invented fails here.")]
 test-rules:
     node node_modules/@jawache/flow/dist/flow.mjs test tests/all.config.ts
     node node_modules/@jawache/flow/dist/flow.mjs test tests/layout.config.ts
@@ -60,6 +60,6 @@ release-check *args:
     just test-commit
     node tools/release.ts check "$@"
 
-[doc("Release and push, only when a feat, a fix or a breaking change landed since the last tag: install from the lockfile, `just release-check`, `just release`, then push the branch and the new tag. A failed step stops it before any later one. A release tagged here and missing on origin is pushed by the next deploy. Never prompts.")]
+[doc("Release and push, only when a feat, a fix or a breaking change landed since the last tag: install from the lockfile, `just release-check`, `just release`, then push the branch and the new tag, then emit `work event release.cut` for it. A failed step stops it before any later one. A release tagged here and missing on origin is pushed, and its event emitted, by the next deploy. Never prompts.")]
 deploy:
     node tools/deploy.ts
