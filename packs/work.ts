@@ -14,6 +14,7 @@
 // quoted argument is text, never a command. Needs @jawache/flow 0.4.0 or later.
 
 import { breadcrumb, type Check, command, defineCategory, definePack, guardrail, programName, session, shellCommands, turnEnd } from "@jawache/flow";
+import { jsonl } from "./transcript.ts";
 
 // ── what no session may run ──
 
@@ -80,20 +81,6 @@ export function turnIsHeld(rows: readonly LogRow[], holds: readonly string[]): b
   if (rows.slice(web + 1).some(settles)) return false;
   const since = Date.parse(rows[web]?.at ?? "");
   return !holds.some((hold) => Date.parse(hold) >= since);
-}
-
-/** The rows of a JSONL text: blank lines dropped, a line that does not parse (a torn one) skipped. */
-function jsonl<T>(text: string): T[] {
-  return text
-    .split("\n")
-    .filter((line) => line.trim() !== "")
-    .flatMap((line) => {
-      try {
-        return [JSON.parse(line) as T];
-      } catch {
-        return [];
-      }
-    });
 }
 
 /** The times of this rule's holds for one issue, from the lines of flow's own log. */
