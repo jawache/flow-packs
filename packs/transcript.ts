@@ -36,13 +36,13 @@ export function jsonl<T>(text: string): T[] {
 const isRow = (value: unknown): value is Row => typeof value === "object" && value !== null && !Array.isArray(value);
 const asRow = (value: unknown): Row => (isRow(value) ? value : {});
 
-/** The text of a message's `content`: a string as it is, or the text blocks of a list joined; `null` when there is none. */
-function textOf(content: unknown): string | null {
+/** The text of a message's `content`: a string as it is, or the text blocks of a list joined; `null` when there is none. `keep` picks the blocks of a list by index. */
+function textOf(content: unknown, keep: (index: number) => boolean = () => true): string | null {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return null;
-  const texts = content.flatMap((block) => {
+  const texts = content.flatMap((block, index) => {
     const b = asRow(block);
-    return (b.type === "text" || b.type === "input_text") && typeof b.text === "string" ? [b.text] : [];
+    return keep(index) && (b.type === "text" || b.type === "input_text") && typeof b.text === "string" ? [b.text] : [];
   });
   return texts.length === 0 ? null : texts.join("\n");
 }
@@ -65,8 +65,10 @@ function codexLine(rows: readonly Row[]): string | null {
     if (payload.type !== "message" || payload.role !== "user") continue;
     const meta = asRow(payload.internal_chat_message_metadata_passthrough);
     if (meta.turn_id !== attribution.turn_id) continue;
-    const typed = Array.isArray(meta.content_item_metadata) && meta.content_item_metadata.some((item) => asRow(asRow(item).provenance).type === "user");
-    if (typed) return textOf(payload.content);
+    const items = Array.isArray(meta.content_item_metadata) ? meta.content_item_metadata : [];
+    const typed = (index: number): boolean => asRow(asRow(items[index]).provenance).type === "user";
+    const line = textOf(payload.content, typed);
+    if (line !== null) return line;
   }
   return null;
 }

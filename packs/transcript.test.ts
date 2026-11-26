@@ -5,7 +5,7 @@ import { turnStartLine } from "./transcript.ts";
 // could use, with every private word replaced: a Claude Code session of this repo's work, and a
 // Codex session of a standing feed.
 
-const jsonl = (...rows: unknown[]): string => rows.map((row) => JSON.stringify(row)).join("\n") + "\n";
+const toJsonl = (...rows: unknown[]): string => rows.map((row) => JSON.stringify(row)).join("\n") + "\n";
 
 // ── Claude Code ──
 
@@ -73,37 +73,37 @@ describe("turnStartLine, on Claude Code's transcript", () => {
     ["a line typed in the terminal", "Let me ask a question. Does it work?"],
     ["a line from the daemon", "[work] /work plan flow-packs-6"],
   ])("returns %s as typed", (_name, line) => {
-    expect(turnStartLine(jsonl(ccHuman("[web card 1] earlier", 2), ccAssistant, ccHuman(line, 3), ccAssistant, ccToolResult))).toBe(line);
+    expect(turnStartLine(toJsonl(ccHuman("[web card 1] earlier", 2), ccAssistant, ccHuman(line, 3), ccAssistant, ccToolResult))).toBe(line);
   });
 
   it("returns a queued line, which waited for the turn before it", () => {
-    expect(turnStartLine(jsonl(ccHuman("[work] /work refine flow-packs-6", 2, "queued"), ccAssistant))).toBe("[work] /work refine flow-packs-6");
+    expect(turnStartLine(toJsonl(ccHuman("[work] /work refine flow-packs-6", 2, "queued"), ccAssistant))).toBe("[work] /work refine flow-packs-6");
   });
 
   it("returns the line that started a turn flow held, after the hold's message", () => {
-    expect(turnStartLine(jsonl(ccHuman("[web card 10] go"), ccAssistant, ccToolResult, ccAssistant, ccHold, ccAssistant))).toBe("[web card 10] go");
+    expect(turnStartLine(toJsonl(ccHuman("[web card 10] go"), ccAssistant, ccToolResult, ccAssistant, ccHold, ccAssistant))).toBe("[web card 10] go");
   });
 
   it("returns no line for a turn a subagent's report started", () => {
-    expect(turnStartLine(jsonl(ccHuman("[web card 3] go", 6), ccAssistant, ccPeer, ccAssistant))).toBeNull();
+    expect(turnStartLine(toJsonl(ccHuman("[web card 3] go", 6), ccAssistant, ccPeer, ccAssistant))).toBeNull();
   });
 
   it("returns no line for a turn a background command's notification started", () => {
-    expect(turnStartLine(jsonl(ccHuman("[web card 9] go", 28), ccAssistant, ccNotification, ccAssistant))).toBeNull();
+    expect(turnStartLine(toJsonl(ccHuman("[web card 9] go", 28), ccAssistant, ccNotification, ccAssistant))).toBeNull();
   });
 
   it("keeps the line that started the turn when another is typed while it runs", () => {
-    const text = jsonl(ccHuman("[work] /work docs flow-packs-6", 3), ccAssistant, ccTypedWhileRunning("[web card 10] go"), ccQueuedAttachment("[web card 10] go"), ccAssistant);
+    const text = toJsonl(ccHuman("[work] /work docs flow-packs-6", 3), ccAssistant, ccTypedWhileRunning("[web card 10] go"), ccQueuedAttachment("[web card 10] go"), ccAssistant);
     expect(turnStartLine(text)).toBe("[work] /work docs flow-packs-6");
   });
 
   it("skips the rows of a subagent's own conversation", () => {
-    expect(turnStartLine(jsonl(ccHuman("[web card 3] go"), ccSubagentRow, ccAssistant))).toBe("[web card 3] go");
+    expect(turnStartLine(toJsonl(ccHuman("[web card 3] go"), ccSubagentRow, ccAssistant))).toBe("[web card 3] go");
   });
 
   it("reads the text blocks of a line that came as a list", () => {
     const row = { ...ccHuman("", 3), message: { role: "user", content: [{ type: "text", text: "[web card 3] go" }] } };
-    expect(turnStartLine(jsonl(row))).toBe("[web card 3] go");
+    expect(turnStartLine(toJsonl(row))).toBe("[web card 3] go");
   });
 });
 
@@ -158,27 +158,34 @@ describe("turnStartLine, on Codex's transcript", () => {
     ["a line typed in the terminal", "Why did they get no images?"],
     ["a line from the daemon", "[work] Run .agents/skills/check/SKILL.md from this checkout."],
   ])("returns %s as typed", (_name, line) => {
-    const text = jsonl(cxStarted(1), cxUser(1, "[web card 1] earlier"), cxAssistant(1), cxComplete(1), cxStarted(2), cxContext(2), cxUser(2, line), cxAssistant(2));
+    const text = toJsonl(cxStarted(1), cxUser(1, "[web card 1] earlier"), cxAssistant(1), cxComplete(1), cxStarted(2), cxContext(2), cxUser(2, line), cxAssistant(2));
     expect(turnStartLine(text)).toBe(line);
   });
 
   it("returns the line that started a turn flow held, after the hold's message", () => {
-    const text = jsonl(cxStarted(2), cxUser(2, "[web card 21] go"), cxAssistant(2), cxHold(2), cxAssistant(2));
+    const text = toJsonl(cxStarted(2), cxUser(2, "[web card 21] go"), cxAssistant(2), cxHold(2), cxAssistant(2));
     expect(turnStartLine(text)).toBe("[web card 21] go");
   });
 
   it("returns no line for a turn whose trigger is not a user's", () => {
-    const text = jsonl(cxStarted(1), cxUser(1, "[web card 3] go"), cxComplete(1), cxStarted(2, "agent"), cxAgentMetadata, cxAgentMessage, cxAssistant(2));
+    const text = toJsonl(cxStarted(1), cxUser(1, "[web card 3] go"), cxComplete(1), cxStarted(2, "agent"), cxAgentMetadata, cxAgentMessage, cxAssistant(2));
     expect(turnStartLine(text)).toBeNull();
   });
 
+  it("returns only the typed item of a message whose content mixes a harness item and a user item", () => {
+    const row = cxUser(1, "[web card 3] go") as { payload: { content: unknown[]; internal_chat_message_metadata_passthrough: Record<string, unknown> } };
+    row.payload.content = [{ type: "input_text", text: "<environment_context/>" }, { type: "input_text", text: "[web card 3] go" }];
+    row.payload.internal_chat_message_metadata_passthrough.content_item_metadata = [{ provenance: { type: "harness", hook: false } }, { provenance: { type: "user" } }];
+    expect(turnStartLine(toJsonl(cxStarted(1), row))).toBe("[web card 3] go");
+  });
+
   it("keeps the line that started the turn when another is typed while it runs", () => {
-    const text = jsonl(cxStarted(1), cxUser(1, "[work] Run .agents/skills/sweep/SKILL.md for 2026-11-26."), cxAssistant(1), cxUser(1, "[web card 4] go"), cxAssistant(1));
+    const text = toJsonl(cxStarted(1), cxUser(1, "[work] Run .agents/skills/sweep/SKILL.md for 2026-11-26."), cxAssistant(1), cxUser(1, "[web card 4] go"), cxAssistant(1));
     expect(turnStartLine(text)).toBe("[work] Run .agents/skills/sweep/SKILL.md for 2026-11-26.");
   });
 
   it("returns no line when the turn that opened has no typed line yet", () => {
-    expect(turnStartLine(jsonl(cxStarted(1), cxUser(1, "[web card 3] go"), cxComplete(1), cxStarted(2), cxContext(2)))).toBeNull();
+    expect(turnStartLine(toJsonl(cxStarted(1), cxUser(1, "[web card 3] go"), cxComplete(1), cxStarted(2), cxContext(2)))).toBeNull();
   });
 });
 
@@ -188,23 +195,23 @@ describe("turnStartLine, with nothing to read", () => {
   it.each([
     ["an empty text", ""],
     ["a text of blank lines", "\n  \n\n"],
-    ["a Claude Code text with no typed line", jsonl({ type: "last-prompt", sessionId: CC.sessionId }, ccAssistant, ccToolResult)],
-    ["a Codex text with no typed line", jsonl({ type: "session_meta", payload: { id: "x" } }, cxStarted(1), cxContext(1))],
+    ["a Claude Code text with no typed line", toJsonl({ type: "last-prompt", sessionId: CC.sessionId }, ccAssistant, ccToolResult)],
+    ["a Codex text with no typed line", toJsonl({ type: "session_meta", payload: { id: "x" } }, cxStarted(1), cxContext(1))],
     ["text that is not rows", "not a transcript\n[web card 3] go\n"],
     ["rows that are not objects", "1\n\"[web card 3] go\"\nnull\n[]\n"],
   ])("returns no line, and throws nothing, for %s", (_name, text) => {
     expect(turnStartLine(text)).toBeNull();
   });
 
-  it("returns no line when the last row of a Claude Code text is torn", () => {
-    const whole = jsonl(ccHuman("[web card 3] go"));
+  it("skips a torn last row of a Claude Code text, and returns no line when the torn row is the only start", () => {
+    const whole = toJsonl(ccHuman("[web card 3] go"));
     expect(turnStartLine(whole + '{"type":"user","message":{"role":"us')).toBe("[web card 3] go");
     expect(turnStartLine('{"type":"user","isSidechain":false,"origin":{"kind":"hu')).toBeNull();
   });
 
-  it("returns no line when the last row of a Codex text is torn", () => {
-    const whole = jsonl(cxStarted(1), cxUser(1, "[web card 3] go"));
+  it("skips a torn last row of a Codex text, and returns no line when the torn row is the only start", () => {
+    const whole = toJsonl(cxStarted(1), cxUser(1, "[web card 3] go"));
     expect(turnStartLine(whole + '{"type":"response_item","payload":{"type":"mess')).toBe("[web card 3] go");
-    expect(turnStartLine(jsonl(cxStarted(1)) + '{"type":"response_item","payload":{"type":"mess')).toBeNull();
+    expect(turnStartLine(toJsonl(cxStarted(1)) + '{"type":"response_item","payload":{"type":"mess')).toBeNull();
   });
 });
