@@ -10,6 +10,7 @@ import { afterEach, expect, it } from "vitest";
 
 const PACKAGE = resolve(import.meta.dirname, "..");
 const CONVERSATION = "00000000-0000-4000-8000-000000000001";
+const { CODEX_HOME: _codexHome, ...envWithoutCodexHome } = process.env; // this machine's own Codex folder is never read
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
@@ -31,9 +32,9 @@ function handBackAfter(line: string): { status: number | null; output: string } 
       { at: "2026-11-25T16:00:00Z", kind: "answer", by: "line" },
     ].map((row) => JSON.stringify(row)).join("\n") + "\n",
   );
-  const home = join(root, "home");
-  const transcript = join(home, ".claude/projects/p", `${CONVERSATION}.jsonl`);
-  mkdirSync(join(home, ".claude/projects/p"), { recursive: true });
+  const config = join(root, "claude-config");
+  const transcript = join(config, "projects/p", `${CONVERSATION}.jsonl`);
+  mkdirSync(join(config, "projects/p"), { recursive: true });
   writeFileSync(
     transcript,
     [
@@ -45,7 +46,7 @@ function handBackAfter(line: string): { status: number | null; output: string } 
   const ran = spawnSync("node", [join(PACKAGE, "node_modules/@jawache/flow/dist/flow.mjs"), "hook", "stop"], {
     cwd: project,
     encoding: "utf8",
-    env: { ...process.env, HOME: home, WORK_SESSION: "o/r#t-1" },
+    env: { ...envWithoutCodexHome, CLAUDE_CONFIG_DIR: config, WORK_SESSION: "o/r#t-1" },
     input: JSON.stringify({ session_id: CONVERSATION, transcript_path: transcript, cwd: project, hook_event_name: "Stop", stop_hook_active: false }),
   });
   return { status: ran.status, output: ran.stdout + ran.stderr };

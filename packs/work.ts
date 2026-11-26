@@ -64,8 +64,11 @@ const lastWebLine = (rows: readonly LogRow[]): number => rows.findLastIndex((row
 const settles = (row: LogRow): boolean =>
   row.kind === "question" || row.kind === "answer" || (row.kind === "event" && /^Moved to /.test(row.body ?? ""));
 
-/** A command that raises a question or moves the issue, at the start of a line or after `&&`, `||`, `;`, `|` or `(`: the daemon's row for it may not be in the log yet. */
-const SETTLING_COMMAND = /(?:^|&&|\|\||[;|(])\s*work\s+(?:issue\s+next|log\s+question)\b/m;
+/** A command of the turn that raises a question or moves the issue, as flow parses it: `work issue next` or `work log question`, wherever the line nests it. Its row may not be in the log yet. */
+const settlesTheTurn = (line: string): boolean =>
+  (shellCommands({ command: line }) ?? []).some(
+    (c) => programName(c.program) === "work" && ((c.args[0] === "issue" && c.args[1] === "next") || (c.args[0] === "log" && c.args[1] === "question")),
+  );
 
 /**
  * Whether a turn that ends now is held. Pure: the line that started the turn (`null` when no typed
@@ -78,7 +81,7 @@ export function turnIsHeld(startLine: string | null, rows: readonly LogRow[], ra
   const web = lastWebLine(rows);
   if (web < 0) return false;
   if (rows.slice(web + 1).some(settles)) return false;
-  return !ran.some((command) => SETTLING_COMMAND.test(command));
+  return !ran.some(settlesTheTurn);
 }
 
 /** The conversation id of the issue's session: the `session` of the newest row that has one, when it is shaped like an id. */
@@ -87,8 +90,13 @@ function conversationOf(rows: readonly LogRow[]): string | null {
   return id !== undefined && /^[0-9A-Za-z-]{8,}$/.test(id) ? id : null;
 }
 
-/** The command that prints the conversation's transcript, whichever coding agent wrote it: Claude Code's by project, Codex's by day. Prints nothing when there is none. */
-const transcriptCommand = (id: string): string => `cat ~/.claude/projects/*/${id}.jsonl ~/.codex/sessions/*/*/*/*${id}.jsonl 2>/dev/null`;
+/**
+ * The command that prints the conversation's transcript, whichever coding agent wrote it: Claude Code's by project under `CLAUDE_CONFIG_DIR`
+ * (`~/.claude` when unset), Codex's by day under `CODEX_HOME` (`~/.codex`). It prints only the rows that can start a turn, a Claude Code row with an
+ * `origin` and a Codex `task_started` or message, so a long session stays under flow's 16 MB limit on a command's output. Prints nothing when there is none.
+ */
+const transcriptCommand = (id: string): string =>
+  `grep -hE '"origin":|"task_started"|"role":"user"' "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/projects/*/${id}.jsonl "\${CODEX_HOME:-$HOME/.codex}"/sessions/*/*/*/*${id}.jsonl 2>/dev/null`;
 
 /** The main session: an agent that is not a subagent. */
 const main = defineCategory("main", (facts) => !facts.subagent);
@@ -237,7 +245,9 @@ export const work = definePack("work", {
         handsBack([answerByLine], claudeTranscript("[web card 3] go") + "\n" + JSON.stringify({ type: "user", isMeta: true, message: { content: "Stop hook feedback: held" } })),
         // each coding agent's format
         handsBack([answerByLine], codexTranscript("[web card 3] go")),
-        // a command that only names the two does not settle the turn
+        // a command that only names the two does not settle the turn: a heredoc body, a commit message, a search
+        handsBack([answerByLine], undefined, ["work log fyi --on 1 <<'WORKLOG'\nwork issue next moves it.\nWORKLOG"]),
+        handsBack([answerByLine], undefined, ["git commit -m 'docs; work issue next moves it'"]),
         handsBack([answerByLine], undefined, ["grep -rn 'work issue next' docs", "work log fyi --on 1 <<'WORKLOG'\nThe rule reads work log question.\nWORKLOG"]),
       ],
       pass: [
@@ -254,6 +264,10 @@ export const work = definePack("work", {
         handsBack([answerByLine], undefined, ["work issue next t-1"]),
         handsBack([answerByLine], undefined, ["work log question --ask \"Which?\" <<'WORKLOG'\nA body.\nWORKLOG"]),
         handsBack([answerByLine], undefined, ["just test && work issue next t-1"]),
+        handsBack([answerByLine], undefined, ["/usr/local/bin/work issue next t-1"]),
+        handsBack([answerByLine], undefined, ["bash -c 'work log question --ask x'"]),
+        // a session id that is not an id is never put in a command
+        { actions: [], actor: ["main"], world: { ...world([answerByLine]), fs: { ".work/t-1/log.jsonl": JSON.stringify({ at: "2026-11-25T15:00:00Z", kind: "event", session: "x; touch pwned" }) + "\n" + answerByLine + "\n" } } },
         // no transcript to read, and a log with no conversation to find one by
         handsBack([answerByLine], null),
         { actions: [], actor: ["main"], world: { ...world([answerByLine]), fs: { ".work/t-1/log.jsonl": answerByLine + "\n" } } },
