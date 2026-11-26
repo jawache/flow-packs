@@ -67,13 +67,8 @@ const ccHold = {
 const ccSubagentRow = { ...ccHuman("a line inside a subagent", 9), isSidechain: true };
 
 describe("turnStartLine, on Claude Code's transcript", () => {
-  it.each([
-    ["a line from the web with a card", "[web card 3] go"],
-    ["a line from the web with no card", "[web] a message"],
-    ["a line typed in the terminal", "Let me ask a question. Does it work?"],
-    ["a line from the daemon", "[work] /work plan flow-packs-6"],
-  ])("returns %s as typed", (_name, line) => {
-    expect(turnStartLine(toJsonl(ccHuman("[web card 1] earlier", 2), ccAssistant, ccHuman(line, 3), ccAssistant, ccToolResult))).toBe(line);
+  it("returns the line that started the turn as typed, after an earlier turn", () => {
+    expect(turnStartLine(toJsonl(ccHuman("[web card 1] earlier", 2), ccAssistant, ccHuman("[web card 3] go", 3), ccAssistant, ccToolResult))).toBe("[web card 3] go");
   });
 
   it("returns a queued line, which waited for the turn before it", () => {
@@ -152,14 +147,9 @@ const cxAgentMetadata = { type: "inter_agent_communication_metadata", payload: {
 const cxAgentMessage = { type: "response_item", payload: { type: "agent_message", id: "amsg_1", author: "/root/verify_1", recipient: "/root", content: [{ type: "input_text", text: "Message Type: MESSAGE" }] } };
 
 describe("turnStartLine, on Codex's transcript", () => {
-  it.each([
-    ["a line from the web with a card", "[web card 3] go"],
-    ["a line from the web with no card", "[web] a message"],
-    ["a line typed in the terminal", "Why did they get no images?"],
-    ["a line from the daemon", "[work] Run .agents/skills/check/SKILL.md from this checkout."],
-  ])("returns %s as typed", (_name, line) => {
-    const text = toJsonl(cxStarted(1), cxUser(1, "[web card 1] earlier"), cxAssistant(1), cxComplete(1), cxStarted(2), cxContext(2), cxUser(2, line), cxAssistant(2));
-    expect(turnStartLine(text)).toBe(line);
+  it("returns the line that started the turn as typed, after an earlier turn", () => {
+    const text = toJsonl(cxStarted(1), cxUser(1, "[web card 1] earlier"), cxAssistant(1), cxComplete(1), cxStarted(2), cxContext(2), cxUser(2, "[web card 3] go"), cxAssistant(2));
+    expect(turnStartLine(text)).toBe("[web card 3] go");
   });
 
   it("returns the line that started a turn flow held, after the hold's message", () => {

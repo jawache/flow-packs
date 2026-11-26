@@ -43,8 +43,7 @@ const playwrightAll: Check = (ctx) => {
 // ── a line from the web with no card ──
 
 /** One row of an issue's `log.jsonl`, as far as the rule reads it. */
-export interface LogRow {
-  readonly at: string;
+interface LogRow {
   readonly kind: string;
   readonly by?: string;
   readonly body?: string;
@@ -76,7 +75,7 @@ const settlesTheTurn = (line: string): boolean =>
  * the web started the turn, the log has no question, no answer any other way and no move since its
  * newest line from the web, and the turn ran neither `work issue next` nor `work log question`.
  */
-export function turnIsHeld(startLine: string | null, rows: readonly LogRow[], ran: readonly string[]): boolean {
+function turnIsHeld(startLine: string | null, rows: readonly LogRow[], ran: readonly string[]): boolean {
   if (startLine === null || !startLine.startsWith("[web")) return false;
   const web = lastWebLine(rows);
   if (web < 0) return false;
@@ -96,7 +95,7 @@ function conversationOf(rows: readonly LogRow[]): string | null {
  * `origin` and a Codex `task_started` or message, so a long session stays under flow's 16 MB limit on a command's output. Prints nothing when there is none.
  */
 const transcriptCommand = (id: string): string =>
-  `grep -hE '"origin":|"task_started"|"role":"user"' "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/projects/*/${id}.jsonl "\${CODEX_HOME:-$HOME/.codex}"/sessions/*/*/*/*${id}.jsonl 2>/dev/null`;
+  `{ grep -h '"origin":' "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/projects/*/${id}.jsonl; grep -hE '"task_started"|"role":"user"' "\${CODEX_HOME:-$HOME/.codex}"/sessions/*/*/*/*${id}.jsonl; } 2>/dev/null`;
 
 /** The main session: an agent that is not a subagent. */
 const main = defineCategory("main", (facts) => !facts.subagent);

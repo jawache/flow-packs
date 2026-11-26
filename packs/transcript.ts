@@ -3,7 +3,7 @@
 // Pure: it is given a transcript's text, Claude Code's or Codex's, and returns the line that started
 // the turn now ending, as typed, such as `[web card 3] go`; `null` when the turn was not started by a
 // typed line, or when there is nothing to read. A hold's message, a line typed while the turn runs
-// and a subagent's report never replace the line that started the turn.
+// and the rows of a subagent's own conversation never replace the line that started the turn.
 //
 // Claude Code writes one row for each message. A turn starts at a `user` row with an `origin`: its
 // `kind` is `human` for a typed line (`promptSource` `typed`, or `queued` when it waited for the
