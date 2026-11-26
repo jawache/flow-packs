@@ -12,4 +12,4 @@ a turn-end guardrail keeps the session's turn open, and its message is the sessi
 
 ## line from the web
 
-a line you send to a session from work's web pages: in the issue's `log.jsonl`, an `answer` with `by: line`, or a `note`
+a line you send to a session from work's web pages: typed into the session with `[web` at its start, and in the issue's `log.jsonl`, an `answer` with `by: line`, or a `note`

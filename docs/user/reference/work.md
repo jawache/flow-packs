@@ -75,19 +75,19 @@ A guardrail. When your last line to a session came from the web, the session's n
 
 - **Holds at** turn-end: the session is about to hand back.
 - **For** the main session only. A subagent's hand-back is never held.
-- **Reads** three things, and no coding agent's transcript:
+- **Reads** three things:
   - `WORK_SESSION`, for the issue's id;
   - the issue's log, `.work/<id>/log.jsonl`;
-  - flow's own log in the worktree, `.flow/log/*.jsonl`, for its earlier holds.
+  - the session's transcript, Claude Code's or Codex's, for the line that started the turn.
 
 ### When it holds
 
 It holds the turn when both are true:
 
-1. Your last line to the session came from the web.
+1. A [line from the web](./glossary.md#line-from-the-web) started the turn.
 2. Since that line, the session has raised no question, no question has been answered any other way, and the issue has not moved.
 
-It holds once for each line from the web. The session's next hand-back is let through, and so is every later one until your next line from the web.
+It holds once for each line from the web. The session's next hand-back is let through.
 
 ### What the agent reads when held
 
@@ -97,17 +97,15 @@ Your turn is ending after a line from the web with no card raised. The human's l
 
 ### Examples
 
-Each row is the end of the issue's `log.jsonl`, oldest first, when the main session hands back.
+Each row is the line that started the turn, and the end of the issue's `log.jsonl`, oldest first, when the main session hands back.
 
-| The log ends with | Result |
-| --- | --- |
-| an `answer` with `by: line` | held |
-| a `note` | held |
-| an `answer` with `by: line`, then a `question` | handed back |
-| an `answer` with `by: line`, then a move of the issue | handed back |
-| an `answer` with `by: line`, then an `answer` with `by: session` | handed back |
-| an `answer` with `by: line`, for which this rule has already held a turn | handed back |
-| a `question`, with no line from you after it | handed back |
-| an `fyi` after an `answer` with `by: line` | held |
-
-A line you type in the terminal writes nothing to the log, so the rule holds no turn for it.
+| The turn started with | The log ends with | Result |
+| --- | --- | --- |
+| `[web card 3] go` | an `answer` with `by: line` | held |
+| `[web] a message` | a `note` | held |
+| `[web card 3] go` | an `answer` with `by: line`, then an `fyi` | held |
+| `[web card 3] go` | an `answer` with `by: line`, then a `question` | handed back |
+| `[web card 3] go` | an `answer` with `by: line`, then a move of the issue | handed back |
+| `[web card 3] go` | an `answer` with `by: line`, then an `answer` with `by: session` | handed back |
+| a line you typed in the terminal | an `answer` with `by: line` | handed back |
+| `[work] /work plan work-3` | an `answer` with `by: line` | handed back |
