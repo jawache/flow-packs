@@ -2,8 +2,8 @@
 //
 // Three entries: a breadcrumb that tells every session how a driven repo works, the guardrail that
 // refuses the Playwright CLI's `close-all` and `kill-all`, which close every session's browsers, and
-// a turn-end guardrail that holds a session's turn once when the human's last line came from the web
-// and no card was raised. The daemon enforces none of them; a driven repo turns them on in its own flow.config.ts:
+// a turn-end guardrail that holds a session's turn when a line from the web started it and no card
+// was raised. The daemon enforces none of them; a driven repo turns them on in its own flow.config.ts:
 //
 //   import { work } from "@jawache/flow-packs/work";
 //   export default defineConfig([ …, pack(work) ]);
@@ -14,7 +14,7 @@
 // quoted argument is text, never a command. Needs @jawache/flow 0.4.0 or later.
 
 import { breadcrumb, type Check, command, defineCategory, definePack, guardrail, programName, session, shellCommands, turnEnd } from "@jawache/flow";
-import { jsonl } from "./transcript.ts";
+import { jsonl, turnStartLine } from "./transcript.ts";
 
 // ── what no session may run ──
 
@@ -48,13 +48,8 @@ export interface LogRow {
   readonly kind: string;
   readonly by?: string;
   readonly body?: string;
+  readonly session?: string;
 }
-
-/** This rule's id in flow's own log. */
-const WEB_LINE_RULE = "work.webLineGetsACard";
-
-/** The detail a hold records, so a later turn can tell which issue it was made for. */
-const holdDetail = (issue: string): string => `issue ${issue}`;
 
 /** The issue's id in `WORK_SESSION`, which holds `<owner>/<repo>#<issue>`; `null` when there is none. */
 function issueOf(session: string): string | null {
@@ -69,32 +64,39 @@ const lastWebLine = (rows: readonly LogRow[]): number => rows.findLastIndex((row
 const settles = (row: LogRow): boolean =>
   row.kind === "question" || row.kind === "answer" || (row.kind === "event" && /^Moved to /.test(row.body ?? ""));
 
+/** A command that raises a question or moves the issue, at the start of a line or after `&&`, `||`, `;`, `|` or `(`: the daemon's row for it may not be in the log yet. */
+const SETTLING_COMMAND = /(?:^|&&|\|\||[;|(])\s*work\s+(?:issue\s+next|log\s+question)\b/m;
+
 /**
- * Whether a turn that ends now is held. Pure: the issue's log rows, oldest first, and the times of
- * this rule's earlier holds for this issue. Held when the newest line from the web has no question,
- * answer or move after it and no hold of this rule at or after it. Times are compared as times,
- * because the daemon stamps whole seconds and flow stamps milliseconds.
+ * Whether a turn that ends now is held. Pure: the line that started the turn (`null` when no typed
+ * line did), the issue's log rows, oldest first, and the commands the turn ran. Held when a line from
+ * the web started the turn, the log has no question, no answer any other way and no move since its
+ * newest line from the web, and the turn ran neither `work issue next` nor `work log question`.
  */
-export function turnIsHeld(rows: readonly LogRow[], holds: readonly string[]): boolean {
+export function turnIsHeld(startLine: string | null, rows: readonly LogRow[], ran: readonly string[]): boolean {
+  if (startLine === null || !startLine.startsWith("[web")) return false;
   const web = lastWebLine(rows);
   if (web < 0) return false;
   if (rows.slice(web + 1).some(settles)) return false;
-  const since = Date.parse(rows[web]?.at ?? "");
-  return !holds.some((hold) => Date.parse(hold) >= since);
+  return !ran.some((command) => SETTLING_COMMAND.test(command));
 }
 
-/** The times of this rule's holds for one issue, from the lines of flow's own log. */
-const holdTimes = (flowLog: string, issue: string): string[] =>
-  jsonl<{ ts?: string; id?: string; kind?: string; detail?: string }>(flowLog).flatMap((row) =>
-    row.kind === "guardrail" && row.id === WEB_LINE_RULE && row.detail === holdDetail(issue) && row.ts !== undefined ? [row.ts] : [],
-  );
+/** The conversation id of the issue's session: the `session` of the newest row that has one, when it is shaped like an id. */
+function conversationOf(rows: readonly LogRow[]): string | null {
+  const id = rows.findLast((row) => typeof row.session === "string")?.session;
+  return id !== undefined && /^[0-9A-Za-z-]{8,}$/.test(id) ? id : null;
+}
+
+/** The command that prints the conversation's transcript, whichever coding agent wrote it: Claude Code's by project, Codex's by day. Prints nothing when there is none. */
+const transcriptCommand = (id: string): string => `cat ~/.claude/projects/*/${id}.jsonl ~/.codex/sessions/*/*/*/*${id}.jsonl 2>/dev/null`;
 
 /** The main session: an agent that is not a subagent. */
 const main = defineCategory("main", (facts) => !facts.subagent);
 
 /**
- * Reads `WORK_SESSION`, the issue's `.work/<id>/log.jsonl`, and flow's own log for this rule's earlier
- * holds. A session with no `WORK_SESSION`, or an issue with no log, is handed back.
+ * Reads `WORK_SESSION`, the issue's `.work/<id>/log.jsonl`, the session's transcript, found by the
+ * conversation id in that log, and the commands the turn ran. A session with no `WORK_SESSION`, an
+ * issue with no log and a turn with no transcript to read are handed back.
  */
 const webLineWithoutCard: Check = async (ctx) => {
   if (!ctx.actor.includes("main")) return ctx.ok(); // `.for(main)` binds the entry live; a case runs the check alone
@@ -103,25 +105,53 @@ const webLineWithoutCard: Check = async (ctx) => {
   const path = `.work/${issue}/log.jsonl`;
   if (!(await ctx.fs.exists(path))) return ctx.ok();
   const rows = jsonl<LogRow>(await ctx.fs.read(path));
-  if (!turnIsHeld(rows, [])) return ctx.ok(); // nothing to hold for: skip the read of flow's log
-  const flowLog = (await ctx.exec(`grep -h '"id":"${WEB_LINE_RULE}"' .flow/log/*.jsonl`)).stdout;
-  return turnIsHeld(rows, holdTimes(flowLog, issue)) ? ctx.fail(holdDetail(issue)) : ctx.ok();
+  const conversation = conversationOf(rows);
+  if (conversation === null) return ctx.ok();
+  const startLine = turnStartLine((await ctx.exec(transcriptCommand(conversation))).stdout);
+  const ran = (ctx.turn ?? []).flatMap((action) => (action.did === "run" ? [action.command] : []));
+  return turnIsHeld(startLine, rows, ran) ? ctx.fail(`issue ${issue}`) : ctx.ok();
 };
 
+const CONVERSATION = "00000000-0000-4000-8000-000000000001";
 
-/** The canned world of a case: the session's issue is `t-1`, its log holds these rows, flow's log these lines. */
-function world(rows: string[], flowLog: string[] = []) {
+/** A row of the issue's log. */
+const logRow = (row: Record<string, unknown>): string => JSON.stringify({ at: "2026-11-25T16:00:00Z", ...row });
+const answerByLine = logRow({ kind: "answer", by: "line" });
+const sessionRow = JSON.stringify({ at: "2026-11-25T15:00:00Z", kind: "event", body: "Session resumed.", session: CONVERSATION });
+
+/** A Claude Code transcript whose last turn a human typed `line` to start. */
+const claudeTranscript = (line: string): string =>
+  [{ type: "user", origin: { kind: "human" }, message: { content: line } }, { type: "assistant", message: { content: [{ type: "text", text: "Working." }] } }].map((row) => JSON.stringify(row)).join("\n");
+
+/** A Codex transcript whose last turn a user typed `line` to start. */
+const codexTranscript = (line: string): string =>
+  [
+    { type: "event_msg", payload: { type: "task_started", turn_attribution: { turn_id: "t1", turn_trigger: "user" } } },
+    {
+      type: "response_item",
+      payload: { type: "message", role: "user", content: [{ type: "input_text", text: line }], internal_chat_message_metadata_passthrough: { turn_id: "t1", content_item_metadata: [{ provenance: { type: "user" } }] } },
+    },
+  ]
+    .map((row) => JSON.stringify(row))
+    .join("\n");
+
+/** The canned world of a case: the session's issue is `t-1`, its log holds these rows, and its transcript is `transcript`. */
+function world(rows: string[], transcript: string | null = claudeTranscript("[web card 3] go")) {
   return {
     exec: {
       "printenv WORK_SESSION": { stdout: "o/r#t-1\n" },
-      [`grep -h '"id":"${WEB_LINE_RULE}"' .flow/log/*.jsonl`]: { stdout: flowLog.join("\n") },
+      [transcriptCommand(CONVERSATION)]: { stdout: transcript ?? "" },
     },
-    fs: { ".work/t-1/log.jsonl": rows.join("\n") + "\n" },
+    fs: { ".work/t-1/log.jsonl": [sessionRow, ...rows].join("\n") + "\n" },
   };
 }
 
-/** A line of flow's log: this rule held a turn for an issue at a time. */
-const hold = (ts: string, issue: string): string => JSON.stringify({ ts, kind: "guardrail", id: WEB_LINE_RULE, detail: holdDetail(issue) });
+/** A case: the main session hands back, having run these commands. */
+const handsBack = (rows: string[], transcript?: string | null, ran: string[] = []) => ({
+  actions: ran.map((command) => ({ did: "run" as const, command })),
+  actor: ["main"],
+  world: world(rows, transcript),
+});
 
 /**
  * A repo driven by work: the daemon types `[work]` lines into one session of the repo's coding agent, Claude Code or Codex, per issue,
@@ -183,10 +213,11 @@ export const work = definePack("work", {
     }),
 
   /**
-   * Without it, a session that your line from the web reached ends its turn with a word in the
+   * Without it, a session that your line from the web started ends its turn with a word in the
    * terminal, where you are not reading: you sent the line from the web, so the web is where you
-   * are. Held once for each line, so a session with nothing for you to read or decide hands back
-   * again and is let through.
+   * are. It reads the session's transcript for the line that started the turn, so a turn you start
+   * in the terminal, or the daemon starts with a `[work]` line, is handed back however old your last
+   * line from the web is. Held once for each turn: flow lets the session's next hand-back through.
    */
   webLineGetsACard: guardrail()
     .at(turnEnd)
@@ -195,34 +226,43 @@ export const work = definePack("work", {
     .message(
       "Your turn is ending after a line from the web with no card raised. The human's last line came from the web, so they are reading the web and not this terminal. What they need to read or decide is a new work log question. With nothing for them to read or decide, hand back again.",
     )
-    .description("A main session's turn is held once when the human's last line to it came from the web and it has raised no question, no question has been answered any other way and the issue has not moved since.")
+    .description("A main session's turn is held when a line from the web started it, read from the session's transcript, and the session has raised no question, no question has been answered any other way, the issue has not moved and the turn ran neither `work issue next` nor `work log question`.")
     .test({
       block: [
-        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}']) },
-        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"note"}']) },
-        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}', '{"at":"2026-11-25T16:01:00Z","kind":"fyi"}']) },
-        // a hold for another issue, or one made before the line, does not count
-        {
-          actions: [],
-          actor: ["main"],
-          world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}'], [hold("2026-11-25T16:05:00.000Z", "other-1"), hold("2026-11-25T15:00:00.000Z", "t-1")]),
-        },
-        // a hold made before a newer line from the web does not count
-        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}', '{"at":"2026-11-25T16:10:00Z","kind":"note"}'], [hold("2026-11-25T16:00:30.000Z", "t-1")]) },
+        // the page's examples: a line from the web started the turn, and the log ends with it, or with an fyi after it
+        handsBack([answerByLine]),
+        handsBack([logRow({ kind: "note" })], claudeTranscript("[web] a message")),
+        handsBack([answerByLine, logRow({ kind: "fyi" })]),
+        // a hold's message in the transcript does not change the line that started the turn
+        handsBack([answerByLine], claudeTranscript("[web card 3] go") + "\n" + JSON.stringify({ type: "user", isMeta: true, message: { content: "Stop hook feedback: held" } })),
+        // each coding agent's format
+        handsBack([answerByLine], codexTranscript("[web card 3] go")),
+        // a command that only names the two does not settle the turn
+        handsBack([answerByLine], undefined, ["grep -rn 'work issue next' docs", "work log fyi --on 1 <<'WORKLOG'\nThe rule reads work log question.\nWORKLOG"]),
       ],
       pass: [
-        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}', '{"at":"2026-11-25T16:01:00Z","kind":"question"}']) },
-        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}', '{"at":"2026-11-25T16:01:00Z","kind":"event","body":"Moved to Docs."}']) },
-        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}'], [hold("2026-11-25T16:00:00.940Z", "t-1")]) },
-        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"question"}']) },
-        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}', '{"at":"2026-11-25T16:01:00Z","kind":"answer","by":"session"}']) },
-        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"note"}', '{"at":"2026-11-25T16:01:00Z","kind":"question"}']) },
-        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"note"}', '{"at":"2026-11-25T16:01:00Z","kind":"event","body":"Moved to Docs."}']) },
-        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"note"}'], [hold("2026-11-25T16:00:00.940Z", "t-1")]) },
+        // the page's examples: the session raised a card, moved the issue, or the question was answered another way
+        handsBack([answerByLine, logRow({ kind: "question" })]),
+        handsBack([answerByLine, logRow({ kind: "event", body: "Moved to Docs." })]),
+        handsBack([answerByLine, logRow({ kind: "answer", by: "session" })]),
+        // the page's examples: a line typed in the terminal, and a `[work]` line, started the turn
+        handsBack([answerByLine], claudeTranscript("Let me ask a question. Does it work?")),
+        handsBack([answerByLine], claudeTranscript("[work] /work plan work-3")),
+        handsBack([answerByLine], codexTranscript("Let me ask a question. Does it work?")),
+        handsBack([answerByLine], codexTranscript("[work] /work plan work-3")),
+        // the turn ran the command whose row is not in the log yet
+        handsBack([answerByLine], undefined, ["work issue next t-1"]),
+        handsBack([answerByLine], undefined, ["work log question --ask \"Which?\" <<'WORKLOG'\nA body.\nWORKLOG"]),
+        handsBack([answerByLine], undefined, ["just test && work issue next t-1"]),
+        // no transcript to read, and a log with no conversation to find one by
+        handsBack([answerByLine], null),
+        { actions: [], actor: ["main"], world: { ...world([answerByLine]), fs: { ".work/t-1/log.jsonl": answerByLine + "\n" } } },
+        // a log with no line from the web
+        handsBack([logRow({ kind: "question" })]),
         // a torn last line of the log is skipped, not thrown on
-        { actions: [], actor: ["main"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}', '{"at":"2026-11-25T16:01:00Z","kind":"question"}', '{"at":"2026-11-25T16:02:00Z","kind":"fy']) },
+        handsBack([answerByLine, logRow({ kind: "question" }), '{"at":"2026-11-25T16:02:00Z","kind":"fy']),
         // a subagent's hand-back is never held
-        { actions: [], actor: ["subagent"], world: world(['{"at":"2026-11-25T16:00:00Z","kind":"answer","by":"line"}']) },
+        { ...handsBack([answerByLine]), actor: ["subagent"] },
         // no WORK_SESSION, and an issue with no log
         { actions: [], actor: ["main"], world: { exec: { "printenv WORK_SESSION": { stdout: "" } } } },
         { actions: [], actor: ["main"], world: { exec: { "printenv WORK_SESSION": { stdout: "o/r#t-1\n" } } } },
