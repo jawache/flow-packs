@@ -12,7 +12,7 @@ Packs of guardrails and breadcrumbs for [flow](https://github.com/jawache/flow) 
 | `secrets` | Env files committed encrypted, decrypted through one seam | none required |
 | `tdd` | Tests that test behaviour, and the suite gates the commit | `run` |
 | `typescript` | Strict TypeScript, and the typecheck and lint gate the commit | `typecheck`, `lint` |
-| [`work`](docs/user/reference/work.md) | A repo driven by [work](https://github.com/jawache/work): a breadcrumb for each session, the Playwright CLI's `close-all` refused, and a turn held when it ends after a line from the web with no question raised | none |
+| [`work`](docs/user/reference/work.md) | A repo driven by [work](https://github.com/jawache/work): a breadcrumb for each session, the Playwright CLI's `close-all` refused, and a turn that a line from the web started held when it ends with no question raised | none |
 
 Each pack's parameters are typed. Binding one without a required parameter does not compile.
 
