@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.4](https://github.com/jawache/flow-packs/compare/v0.1.3...v0.1.4) (2026-11-27)
+
+### Features
+
+* **work:** turnStartLine reads the line that started a turn from a Claude Code or Codex transcript (flow-packs-7/1) ([c5aa428](https://github.com/jawache/flow-packs/commit/c5aa4287eb1137213354053df9bcc2e684d88dbe))
+* **work:** webLineGetsACard holds a turn only when a line from the web started it, read from the transcript (flow-packs-7/2) ([0bab329](https://github.com/jawache/flow-packs/commit/0bab329ea7b0698dfd0325d404809b8015de347b))
+
+### Bug Fixes
+
+* **work:** codexLine reads only the typed items of a message, and the tests are named for what they assert (flow-packs-7/1) ([17b84f0](https://github.com/jawache/flow-packs/commit/17b84f096e02ef818f43feedad03e1c0da066ac3))
+* **work:** the transcript search reads "origin": alone for Claude Code, and the transcript tests cover Codex end to end (flow-packs-7/5) ([478b83d](https://github.com/jawache/flow-packs/commit/478b83d65fe5189f45d4102d68c128ed9794cd9d))
+* **work:** webLineGetsACard reads the turn's commands with flow's parser, and finds a filtered transcript under CLAUDE_CONFIG_DIR or CODEX_HOME (flow-packs-7/2) ([d2cce90](https://github.com/jawache/flow-packs/commit/d2cce90ac982b0d6fb60ee88f8dba69c7e1aa9cc))
 ## [0.1.3](https://github.com/jawache/flow-packs/compare/v0.1.2...v0.1.3) (2026-11-25)
 
 ### Features
